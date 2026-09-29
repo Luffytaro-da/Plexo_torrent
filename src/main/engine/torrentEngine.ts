@@ -239,7 +239,11 @@ export class TorrentEngine implements ITorrentEngineAdapter {
     // Trigger startup state machine for active restored torrents: restored -> checking -> downloading / seeding
     for (const session of this.sessions.values()) {
       if (session.status === 'restored') {
-        void this.startTorrent(session.infoHash)
+        if (settings.autoStartRestoredTorrents !== false) {
+          void this.startTorrent(session.infoHash)
+        } else {
+          session.status = 'paused'
+        }
       }
     }
 

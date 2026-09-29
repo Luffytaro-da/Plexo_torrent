@@ -10,7 +10,6 @@ import {
   Copy,
   Cpu,
   Info,
-  Power,
   RefreshCw,
   ShieldAlert,
   Terminal,
@@ -22,7 +21,7 @@ import { formatBytes, formatSpeed } from '../utils/formatters'
 import type { RoutingDiagnosticsReport, InterfaceRoutingDetailedStatus } from '../../../shared/types'
 
 export const NetworksView: React.FC = () => {
-  const { interfaces, toggleInterface, refreshInterfaces, setViewMode, telemetry, torrents } = useTorrentStore()
+  const { interfaces, refreshInterfaces, setViewMode, telemetry, torrents } = useTorrentStore()
   const [showDiagnostics, setShowDiagnostics] = useState<boolean>(false)
   const [diagnostics, setDiagnostics] = useState<RoutingDiagnosticsReport | null>(null)
   const [isLoadingDiag, setIsLoadingDiag] = useState<boolean>(false)
@@ -66,7 +65,7 @@ export const NetworksView: React.FC = () => {
     setTimeout(() => setCopiedDiag(false), 2000)
   }
 
-  const onlineCount = interfaces.filter((i) => i.isOnline && i.enabled).length
+  const onlineCount = interfaces.filter((i) => i.isOnline).length
   const confirmedPhysicalCount = interfaces.filter(
     (i) => i.isPhysicallyConfirmed && (i.downloadSpeed > 0 || (i.physicalBytesReceived && i.physicalBytesReceived > 0))
   ).length
@@ -405,17 +404,17 @@ export const NetworksView: React.FC = () => {
               <div
                 key={iface.id}
                 className={`border rounded-lg p-3 transition-colors ${
-                  iface.enabled && iface.isOnline
+                  iface.isOnline
                     ? 'bg-[#141922] border-[#212936] shadow-xs'
                     : 'bg-[#10141a] border-[#1a212d] opacity-60'
                 }`}
               >
-                {/* Top Title & Enable Toggle */}
+                {/* Top Title & Read-only Status */}
                 <div className="flex items-start justify-between mb-2">
                   <div className="flex items-center gap-2">
                     <div
                       className={`w-2 h-2 rounded-full shrink-0 ${
-                        iface.enabled && iface.isOnline
+                        iface.isOnline
                           ? iface.isPhysicallyConfirmed && iface.downloadSpeed > 0
                             ? 'bg-emerald-400 shadow-xs shadow-emerald-400/50'
                             : 'bg-cyan-400'
@@ -440,17 +439,16 @@ export const NetworksView: React.FC = () => {
                       {rBadge.label}
                     </span>
 
-                    <button
-                      onClick={() => toggleInterface(iface.id, !iface.enabled)}
-                      className={`px-2 py-0.5 rounded text-[10px] font-semibold flex items-center gap-1 transition-colors cursor-pointer ${
-                        iface.enabled
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/30'
-                          : 'bg-[#1a212d] text-slate-400 border border-[#273244] hover:bg-[#202938]'
+                    <span
+                      className={`px-1.5 py-0.2 rounded text-[10px] font-semibold border ${
+                        iface.isOnline
+                          ? 'bg-emerald-500/10 text-emerald-300 border-emerald-500/30'
+                          : 'bg-[#1a212d] text-slate-400 border-[#273244]'
                       }`}
+                      title="Read-only adapter status"
                     >
-                      <Power className="w-3 h-3" />
-                      <span>{iface.enabled ? 'Enabled' : 'Disabled'}</span>
-                    </button>
+                      {iface.isOnline ? 'Online' : 'Offline'}
+                    </span>
                   </div>
                 </div>
 

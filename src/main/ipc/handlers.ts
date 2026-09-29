@@ -1,5 +1,6 @@
 import { dialog, ipcMain, shell, type BrowserWindow } from 'electron'
 import { IpcChannels } from '../../shared/ipc-channels'
+import type { GlobalSettings } from '../../shared/types'
 import type { ITorrentEngineAdapter } from '../engine/adapter'
 import type { Database } from '../persistence/database'
 import { IpcValidator } from './validator'
@@ -7,7 +8,8 @@ import { IpcValidator } from './validator'
 export function registerIpcHandlers(
   mainWindow: BrowserWindow,
   engine: ITorrentEngineAdapter,
-  database: Database
+  database: Database,
+  onSettingsUpdated?: (settings: GlobalSettings) => void
 ): void {
   // Interfaces
   ipcMain.handle(IpcChannels.LIST_INTERFACES, async () => {
@@ -102,6 +104,20 @@ export function registerIpcHandlers(
   ipcMain.handle(IpcChannels.UPDATE_SETTINGS, async (_event, patch) => {
     const validatedPatch = IpcValidator.validateSettingsPatch(patch)
     const updated = database.updateSettings(validatedPatch)
+    await database.saveImmediate()
+    if (onSettingsUpdated) {
+      onSettingsUpdated(updated)
+    }
+    await engine.updateSettings(updated)
+    return updated
+  })
+
+  ipcMain.handle(IpcChannels.RESET_SETTINGS, async (_event, section?: string) => {
+    const updated = database.resetSettings(section)
+    await database.saveImmediate()
+    if (onSettingsUpdated) {
+      onSettingsUpdated(updated)
+    }
     await engine.updateSettings(updated)
     return updated
   })

@@ -27,7 +27,8 @@ export const TorrentRow: React.FC<TorrentRowProps> = ({ torrent, isSelected }) =
     pauseTorrent,
     resumeTorrent,
     recheckTorrent,
-    removeTorrent
+    removeTorrent,
+    settings
   } = useTorrentStore()
 
   const statusMeta = STATUS_CONFIG[torrent.status] || STATUS_CONFIG.paused
@@ -46,8 +47,17 @@ export const TorrentRow: React.FC<TorrentRowProps> = ({ torrent, isSelected }) =
 
   const handleRemove = (e: React.MouseEvent) => {
     e.stopPropagation()
-    if (confirm(`Remove "${torrent.name}" from RelayTorrent?`)) {
-      void removeTorrent(torrent.infoHash, false)
+    const deleteFiles = e.shiftKey
+    if (deleteFiles) {
+      const shouldConfirm = settings?.confirmDataDeletion !== false
+      if (!shouldConfirm || confirm(`Permanently delete "${torrent.name}" and downloaded files from disk?`)) {
+        void removeTorrent(torrent.infoHash, true)
+      }
+    } else {
+      const shouldConfirm = settings?.confirmTorrentRemoval !== false
+      if (!shouldConfirm || confirm(`Remove "${torrent.name}" from RelayTorrent?`)) {
+        void removeTorrent(torrent.infoHash, false)
+      }
     }
   }
 

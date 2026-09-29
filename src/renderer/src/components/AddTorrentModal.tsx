@@ -1,4 +1,4 @@
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import {
   FileUp,
   Folder,
@@ -30,6 +30,18 @@ export const AddTorrentModal: React.FC = () => {
   const [policyMode, setPolicyMode] = useState<InterfacePolicy['mode']>('automatic')
   const [targetInterfaceId, setTargetInterfaceId] = useState<string>('')
   const [selectedFileIndices, setSelectedFileIndices] = useState<Set<number>>(new Set())
+
+  // Keep savePath and startImmediately in sync with latest settings when modal opens
+  useEffect(() => {
+    if (isAddModalOpen) {
+      if (settings?.defaultSavePath) {
+        setSavePath(settings.defaultSavePath)
+      }
+      if (settings?.autoStartDownloads !== undefined) {
+        setStartImmediately(settings.autoStartDownloads)
+      }
+    }
+  }, [isAddModalOpen, settings])
 
   if (!isAddModalOpen) return null
 

@@ -45,7 +45,7 @@ export const Header: React.FC = () => {
   const downSpeed = telemetry?.totalDownloadSpeed || 0
   const upSpeed = telemetry?.totalUploadSpeed || 0
   const interfaces = telemetry?.interfaces && telemetry.interfaces.length > 0 ? telemetry.interfaces : storeInterfaces
-  const onlineIfaces = interfaces.filter((i) => i.isOnline && i.enabled).length
+  const onlineIfaces = interfaces.filter((i) => i.isOnline).length
   const confirmedPhysicalCount = interfaces.filter(
     (i) => i.isPhysicallyConfirmed && (i.downloadSpeed > 0 || (i.physicalBytesReceived && i.physicalBytesReceived > 0))
   ).length

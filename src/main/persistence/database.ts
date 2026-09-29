@@ -1,4 +1,4 @@
-import { existsSync } from 'node:fs'
+import { copyFileSync, existsSync, renameSync, unlinkSync, writeFileSync } from 'node:fs'
 import { copyFile, mkdir, readFile, rename, unlink, writeFile } from 'node:fs/promises'
 import { dirname, join } from 'node:path'
 import { DEFAULT_LISTEN_PORT } from '../../shared/constants'
@@ -10,6 +10,46 @@ import {
   type PersistedTorrentRecord
 } from './schema'
 
+export const SETTINGS_SECTIONS = {
+  general: [
+    'startWithWindows',
+    'startMinimized',
+    'minimizeToTray',
+    'closeToTray',
+    'autoStartRestoredTorrents',
+    'autoStartDownloads',
+    'confirmTorrentRemoval',
+    'confirmDataDeletion',
+    'showCompletionNotifications',
+    'showErrorNotifications',
+    'defaultSavePath'
+  ],
+  appearance: ['theme', 'uiDensity'],
+  downloads: [
+    'defaultSavePath',
+    'openFolderOnCompletion',
+    'autoStartDownloads',
+    'maxActiveDownloads',
+    'maxActiveSeeds'
+  ],
+  connection: [
+    'maxGlobalConns',
+    'maxConnsPerTorrent',
+    'globalDownloadLimit',
+    'globalUploadLimit',
+    'listenPort',
+    'enableUpnp',
+    'enableDht',
+    'enablePex',
+    'enableLsd'
+  ],
+  diagnostics: [
+    'enableDiagnosticLogging',
+    'enableRoutingDiagnostics',
+    'enableVerbosePeerDiagnostics'
+  ]
+} as const
+
 export function getDefaultSettings(defaultSaveDir: string): GlobalSettings {
   return {
     defaultSavePath: defaultSaveDir,
@@ -17,14 +57,30 @@ export function getDefaultSettings(defaultSaveDir: string): GlobalSettings {
     maxActiveSeeds: 5,
     maxConnsPerTorrent: 55,
     maxGlobalConns: 200,
+    globalDownloadLimit: -1,
+    globalUploadLimit: -1,
     defaultInterfacePolicy: { mode: 'automatic' },
     theme: 'dark',
+    uiDensity: 'compact',
+    startWithWindows: false,
+    startMinimized: false,
+    minimizeToTray: false,
+    closeToTray: false,
+    autoStartRestoredTorrents: true,
+    autoStartDownloads: true,
+    confirmTorrentRemoval: true,
+    confirmDataDeletion: true,
+    showCompletionNotifications: true,
+    showErrorNotifications: true,
+    openFolderOnCompletion: false,
     enableDht: true,
     enablePex: true,
     enableLsd: true,
     enableUpnp: true,
-    autoStartDownloads: true,
-    listenPort: DEFAULT_LISTEN_PORT
+    listenPort: DEFAULT_LISTEN_PORT,
+    enableDiagnosticLogging: false,
+    enableRoutingDiagnostics: false,
+    enableVerbosePeerDiagnostics: false
   }
 }
 
@@ -34,6 +90,7 @@ export class Database {
   private state: PersistedState
   private saveTimeout: NodeJS.Timeout | null = null
   private isSaving = false
+  private pendingSave = false
   private defaultSaveDir: string
 
   constructor(storageDir: string, defaultSaveDir: string) {
@@ -109,6 +166,22 @@ export class Database {
     return this.getSettings()
   }
 
+  resetSettings(section?: string): GlobalSettings {
+    const defaults = getDefaultSettings(this.defaultSaveDir)
+    if (!section || section === 'all') {
+      this.state.settings = { ...defaults }
+    } else {
+      const keys = SETTINGS_SECTIONS[section as keyof typeof SETTINGS_SECTIONS]
+      if (keys) {
+        for (const k of keys) {
+          ;(this.state.settings as any)[k] = (defaults as any)[k]
+        }
+      }
+    }
+    this.scheduleSave()
+    return this.getSettings()
+  }
+
   getTorrent(infoHash: string): PersistedTorrentRecord | undefined {
     return this.state.torrents[infoHash.toLowerCase()]
   }
@@ -149,7 +222,15 @@ export class Database {
   }
 
   async saveImmediate(): Promise<void> {
-    if (this.isSaving) return
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout)
+      this.saveTimeout = null
+    }
+
+    if (this.isSaving) {
+      this.pendingSave = true
+      return
+    }
     this.isSaving = true
 
     this.state.lastSavedAt = Date.now()
@@ -178,6 +259,38 @@ export class Database {
       }
     } finally {
       this.isSaving = false
+      if (this.pendingSave) {
+        this.pendingSave = false
+        void this.saveImmediate()
+      }
+    }
+  }
+
+  saveSync(): void {
+    if (this.saveTimeout) {
+      clearTimeout(this.saveTimeout)
+      this.saveTimeout = null
+    }
+    this.state.lastSavedAt = Date.now()
+    const content = JSON.stringify(this.state, null, 2)
+    const tempFile = `${this.filePath}.tmp.${Date.now()}`
+    try {
+      writeFileSync(tempFile, content, 'utf-8')
+      if (existsSync(this.filePath)) {
+        try {
+          copyFileSync(this.filePath, this.backupPath)
+        } catch {
+          // ignore backup errors
+        }
+      }
+      renameSync(tempFile, this.filePath)
+    } catch (err) {
+      console.error('[DB] Sync save error:', err)
+      try {
+        if (existsSync(tempFile)) unlinkSync(tempFile)
+      } catch {
+        // ignore cleanup error
+      }
     }
   }
 }

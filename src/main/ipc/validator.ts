@@ -81,9 +81,128 @@ export class IpcValidator {
   }
 
   static validateSettingsPatch(patch: unknown): Partial<GlobalSettings> {
-    if (!patch || typeof patch !== 'object') {
-      throw new Error('Settings patch must be an object')
+    if (!patch || typeof patch !== 'object' || Array.isArray(patch)) {
+      throw new Error('Settings patch must be a non-null object')
     }
-    return patch as Partial<GlobalSettings>
+
+    const p = patch as Record<string, unknown>
+    const validated: Partial<GlobalSettings> = {}
+
+    // Appearance
+    if (p.theme !== undefined) {
+      if (p.theme !== 'dark' && p.theme !== 'light' && p.theme !== 'system') {
+        throw new Error(`Invalid theme: "${p.theme}". Expected dark, light, or system`)
+      }
+      validated.theme = p.theme
+    }
+
+    if (p.uiDensity !== undefined) {
+      if (p.uiDensity !== 'standard' && p.uiDensity !== 'compact') {
+        throw new Error(`Invalid uiDensity: "${p.uiDensity}". Expected standard or compact`)
+      }
+      validated.uiDensity = p.uiDensity
+    }
+
+    // Startup & behavior booleans
+    const booleanKeys: (keyof GlobalSettings)[] = [
+      'startWithWindows',
+      'startMinimized',
+      'minimizeToTray',
+      'closeToTray',
+      'autoStartRestoredTorrents',
+      'autoStartDownloads',
+      'confirmTorrentRemoval',
+      'confirmDataDeletion',
+      'showCompletionNotifications',
+      'showErrorNotifications',
+      'openFolderOnCompletion',
+      'enableDht',
+      'enablePex',
+      'enableLsd',
+      'enableUpnp',
+      'enableDiagnosticLogging',
+      'enableRoutingDiagnostics',
+      'enableVerbosePeerDiagnostics'
+    ]
+
+    for (const key of booleanKeys) {
+      if (p[key] !== undefined) {
+        if (typeof p[key] !== 'boolean') {
+          throw new Error(`Invalid boolean value for setting "${key}"`)
+        }
+        ;(validated as any)[key] = p[key]
+      }
+    }
+
+    // Default Save Path
+    if (p.defaultSavePath !== undefined) {
+      if (typeof p.defaultSavePath !== 'string' || !p.defaultSavePath.trim()) {
+        throw new Error('defaultSavePath must be a non-empty string')
+      }
+      validated.defaultSavePath = p.defaultSavePath.trim()
+    }
+
+    // Numeric limits
+    if (p.maxActiveDownloads !== undefined) {
+      const val = Number(p.maxActiveDownloads)
+      if (!Number.isFinite(val) || val < 1 || val > 100) {
+        throw new Error('maxActiveDownloads must be an integer between 1 and 100')
+      }
+      validated.maxActiveDownloads = Math.floor(val)
+    }
+
+    if (p.maxActiveSeeds !== undefined) {
+      const val = Number(p.maxActiveSeeds)
+      if (!Number.isFinite(val) || val < 1 || val > 100) {
+        throw new Error('maxActiveSeeds must be an integer between 1 and 100')
+      }
+      validated.maxActiveSeeds = Math.floor(val)
+    }
+
+    if (p.maxGlobalConns !== undefined) {
+      const val = Number(p.maxGlobalConns)
+      if (!Number.isFinite(val) || val < 10 || val > 5000) {
+        throw new Error('maxGlobalConns must be an integer between 10 and 5000')
+      }
+      validated.maxGlobalConns = Math.floor(val)
+    }
+
+    if (p.maxConnsPerTorrent !== undefined) {
+      const val = Number(p.maxConnsPerTorrent)
+      if (!Number.isFinite(val) || val < 1 || val > 500) {
+        throw new Error('maxConnsPerTorrent must be an integer between 1 and 500')
+      }
+      validated.maxConnsPerTorrent = Math.floor(val)
+    }
+
+    if (p.globalDownloadLimit !== undefined) {
+      const val = Number(p.globalDownloadLimit)
+      if (!Number.isFinite(val) || (val < 0 && val !== -1)) {
+        throw new Error('globalDownloadLimit must be -1 (unlimited) or a non-negative number')
+      }
+      validated.globalDownloadLimit = val < 0 ? -1 : Math.floor(val)
+    }
+
+    if (p.globalUploadLimit !== undefined) {
+      const val = Number(p.globalUploadLimit)
+      if (!Number.isFinite(val) || (val < 0 && val !== -1)) {
+        throw new Error('globalUploadLimit must be -1 (unlimited) or a non-negative number')
+      }
+      validated.globalUploadLimit = val < 0 ? -1 : Math.floor(val)
+    }
+
+    if (p.listenPort !== undefined) {
+      const val = Number(p.listenPort)
+      if (!Number.isFinite(val) || val < 0 || val > 65535) {
+        throw new Error('listenPort must be a valid port number (0-65535)')
+      }
+      validated.listenPort = Math.floor(val)
+    }
+
+    if (p.defaultInterfacePolicy !== undefined) {
+      validated.defaultInterfacePolicy = this.validateInterfacePolicy(p.defaultInterfacePolicy)
+    }
+
+    return validated
   }
 }

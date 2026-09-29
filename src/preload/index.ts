@@ -28,6 +28,7 @@ const methodToChannel: Record<keyof IpcContract, string> = {
   getTorrentPieceStates: IpcChannels.GET_TORRENT_PIECE_STATES,
   getSettings: IpcChannels.GET_SETTINGS,
   updateSettings: IpcChannels.UPDATE_SETTINGS,
+  resetSettings: IpcChannels.RESET_SETTINGS,
   chooseDirectory: IpcChannels.CHOOSE_DIRECTORY,
   chooseTorrentFile: IpcChannels.CHOOSE_TORRENT_FILE,
   revealInFolder: IpcChannels.REVEAL_IN_FOLDER,

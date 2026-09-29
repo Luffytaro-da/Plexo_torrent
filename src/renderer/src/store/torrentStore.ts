@@ -51,7 +51,8 @@ interface TorrentStoreState {
   refreshInterfaces: () => Promise<void>
   setFilePriorities: (infoHash: string, priorities: Record<number, TorrentFilePriority>) => Promise<void>
   setTorrentInterfacePolicy: (infoHash: string, policy: InterfacePolicy) => Promise<void>
-  updateSettings: (patch: Partial<GlobalSettings>) => Promise<void>
+  updateSettings: (patch: Partial<GlobalSettings>) => Promise<GlobalSettings | void>
+  resetSettings: (section?: string) => Promise<GlobalSettings | void>
 }
 
 export const useTorrentStore = create<TorrentStoreState>((set, get) => ({
@@ -185,6 +186,26 @@ export const useTorrentStore = create<TorrentStoreState>((set, get) => ({
     if (window.relayTorrent) {
       const updated = await window.relayTorrent.updateSettings(patch)
       set({ settings: updated })
+      return updated
+    } else {
+      set((state) => {
+        const merged = { ...(state.settings || ({} as any)), ...patch }
+        return { settings: merged }
+      })
+      return undefined
     }
+  },
+
+  resetSettings: async (section?: string) => {
+    if (window.relayTorrent) {
+      const updated = await window.relayTorrent.resetSettings(section)
+      set({ settings: updated })
+      return updated
+    }
+    return undefined
   }
 }))
+
+if (typeof window !== 'undefined') {
+  ;(window as any).__torrentStore = useTorrentStore
+}

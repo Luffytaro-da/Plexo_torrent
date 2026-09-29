@@ -15,8 +15,54 @@ export const App: React.FC = () => {
     setTelemetry,
     setPieceStates,
     viewMode,
-    selectedInfoHash
+    selectedInfoHash,
+    settings
   } = useTorrentStore()
+
+  // Apply theme and UI density immediately to root document
+  useEffect(() => {
+    const root = document.documentElement
+    const savedTheme = typeof localStorage !== 'undefined' ? localStorage.getItem('relaytorrent_theme') : null
+    const theme = settings?.theme || savedTheme || 'dark'
+    const isDark =
+      theme === 'dark' ||
+      (theme === 'system' && typeof window !== 'undefined' && window.matchMedia?.('(prefers-color-scheme: dark)').matches)
+
+    if (isDark) {
+      root.classList.remove('theme-light')
+      root.classList.add('dark', 'theme-dark')
+    } else {
+      root.classList.remove('dark', 'theme-dark')
+      root.classList.add('theme-light')
+    }
+
+    if (settings?.theme) {
+      try {
+        localStorage.setItem('relaytorrent_theme', settings.theme)
+      } catch {}
+    }
+
+    const density = settings?.uiDensity || 'compact'
+    root.setAttribute('data-density', density)
+  }, [settings?.theme, settings?.uiDensity])
+
+  // React to system color scheme changes if follow-system is active
+  useEffect(() => {
+    if (settings?.theme !== 'system' || typeof window === 'undefined' || !window.matchMedia) return
+    const mq = window.matchMedia('(prefers-color-scheme: dark)')
+    const handler = (e: MediaQueryListEvent) => {
+      const root = document.documentElement
+      if (e.matches) {
+        root.classList.remove('theme-light')
+        root.classList.add('dark', 'theme-dark')
+      } else {
+        root.classList.remove('dark', 'theme-dark')
+        root.classList.add('theme-light')
+      }
+    }
+    mq.addEventListener('change', handler)
+    return () => mq.removeEventListener('change', handler)
+  }, [settings?.theme])
 
   // Dynamic resizable splitter state (percent of content height for TorrentList)
   const [splitPercent, setSplitPercent] = useState<number>(50)

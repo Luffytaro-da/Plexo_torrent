@@ -49,6 +49,7 @@ export interface IpcContract {
   getTorrentPieceStates: { args: [infoHash: string]; result: PieceState[] }
   getSettings: { args: []; result: GlobalSettings }
   updateSettings: { args: [patch: Partial<GlobalSettings>]; result: GlobalSettings }
+  resetSettings: { args: [section?: string]; result: GlobalSettings }
 
   chooseDirectory: { args: [defaultPath?: string]; result: string | null }
   chooseTorrentFile: { args: []; result: string | null }

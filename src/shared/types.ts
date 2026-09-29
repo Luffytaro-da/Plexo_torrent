@@ -259,12 +259,34 @@ export interface GlobalSettings {
   globalUploadLimit?: number
   defaultInterfacePolicy: InterfacePolicy
   theme: 'dark' | 'light' | 'system'
+  uiDensity?: 'standard' | 'compact'
+
+  // Startup and application behavior
+  startWithWindows?: boolean
+  startMinimized?: boolean
+  minimizeToTray?: boolean
+  closeToTray?: boolean
+  autoStartRestoredTorrents?: boolean
+  autoStartDownloads?: boolean
+  confirmTorrentRemoval?: boolean
+  confirmDataDeletion?: boolean
+  showCompletionNotifications?: boolean
+  showErrorNotifications?: boolean
+
+  // Downloads
+  openFolderOnCompletion?: boolean
+
+  // Connection
   enableDht: boolean
   enablePex: boolean
   enableLsd: boolean
   enableUpnp?: boolean
-  autoStartDownloads?: boolean
   listenPort: number
+
+  // Diagnostics
+  enableDiagnosticLogging?: boolean
+  enableRoutingDiagnostics?: boolean
+  enableVerbosePeerDiagnostics?: boolean
 }
 
 export interface SystemTelemetry {

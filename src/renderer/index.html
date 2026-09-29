@@ -7,6 +7,21 @@
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=Roboto+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
+    <script>
+      (function() {
+        try {
+          var t = localStorage.getItem('relaytorrent_theme') || 'dark';
+          var isDark = t === 'dark' || (t === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches);
+          if (isDark) {
+            document.documentElement.classList.remove('theme-light');
+            document.documentElement.classList.add('dark', 'theme-dark');
+          } else {
+            document.documentElement.classList.remove('dark', 'theme-dark');
+            document.documentElement.classList.add('theme-light');
+          }
+        } catch(e) {}
+      })();
+    </script>
   </head>
   <body class="bg-slate-950 text-slate-100 antialiased overflow-hidden select-none font-sans">
     <div id="root" class="h-screen w-screen flex flex-col"></div>

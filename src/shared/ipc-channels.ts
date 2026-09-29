@@ -21,6 +21,7 @@ export const IpcChannels = {
   GET_TORRENT_PIECE_STATES: 'relaytorrent:get-torrent-piece-states',
   GET_SETTINGS: 'relaytorrent:get-settings',
   UPDATE_SETTINGS: 'relaytorrent:update-settings',
+  RESET_SETTINGS: 'relaytorrent:reset-settings',
 
   CHOOSE_DIRECTORY: 'relaytorrent:choose-directory',
   CHOOSE_TORRENT_FILE: 'relaytorrent:choose-torrent-file',
