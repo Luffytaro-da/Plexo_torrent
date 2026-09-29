@@ -139,19 +139,19 @@ export const AddTorrentModal: React.FC = () => {
   }
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-none">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 select-none">
+      <div className="bg-[#141922] border border-[#273244] rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col max-h-[85vh]">
         {/* Modal Header */}
-        <div className="h-12 border-b border-slate-800 px-4 flex items-center justify-between bg-slate-950/60">
-          <div className="flex items-center gap-2 font-bold text-sm text-slate-100">
-            <HardDrive className="w-4 h-4 text-cyan-400" />
+        <div className="h-10 border-b border-[#1f2735] px-3.5 flex items-center justify-between bg-[#11161d]">
+          <div className="flex items-center gap-2 font-bold text-xs text-slate-100">
+            <HardDrive className="w-3.5 h-3.5 text-cyan-400" />
             <span>Add New Torrent</span>
           </div>
           <button
             onClick={() => setAddModalOpen(false)}
-            className="p-1 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-1 rounded hover:bg-[#1a212d] text-slate-400 hover:text-slate-200 transition-colors"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -369,16 +369,16 @@ export const AddTorrentModal: React.FC = () => {
         </div>
 
         {/* Modal Footer */}
-        <div className="h-14 border-t border-slate-800 px-4 flex items-center justify-end gap-2 bg-slate-950/60">
+        <div className="h-11 border-t border-[#1f2735] px-3.5 flex items-center justify-end gap-2 bg-[#11161d]">
           <button
             onClick={() => setAddModalOpen(false)}
-            className="px-4 py-1.5 rounded-lg border border-slate-700 text-slate-300 hover:bg-slate-800 text-xs font-medium cursor-pointer"
+            className="px-3 py-1 rounded-md border border-[#273244] text-slate-300 hover:bg-[#1f2735] text-xs font-medium cursor-pointer"
           >
             Cancel
           </button>
           <button
             onClick={handleAdd}
-            className="px-4 py-1.5 rounded-lg bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-semibold shadow-md shadow-cyan-500/20 cursor-pointer"
+            className="px-3 py-1 rounded-md bg-cyan-600 hover:bg-cyan-500 text-white text-xs font-semibold shadow-xs cursor-pointer"
           >
             Add Torrent
           </button>

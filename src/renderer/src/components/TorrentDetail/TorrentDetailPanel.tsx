@@ -6,7 +6,8 @@ import {
   Info,
   Network,
   Radio,
-  Users
+  Users,
+  X
 } from 'lucide-react'
 import { useTorrentStore, type DetailTab } from '../../store/torrentStore'
 import { ActivityLogTab } from './ActivityLogTab'
@@ -18,7 +19,7 @@ import { PiecesTab } from './PiecesTab'
 import { TrackersTab } from './TrackersTab'
 
 export const TorrentDetailPanel: React.FC = () => {
-  const { torrents, selectedInfoHash, selectedTab, setSelectedTab } = useTorrentStore()
+  const { torrents, selectedInfoHash, setSelectedInfoHash, selectedTab, setSelectedTab } = useTorrentStore()
 
   const torrent = torrents.find((t) => t.infoHash === selectedInfoHash)
   if (!torrent) return null
@@ -34,35 +35,47 @@ export const TorrentDetailPanel: React.FC = () => {
   ]
 
   return (
-    <div className="h-72 border-t border-slate-800/80 bg-slate-950 flex flex-col select-none shrink-0">
-      {/* Detail Tabs Bar */}
-      <div className="h-9 border-b border-slate-800/80 bg-slate-900/60 flex items-center px-3 gap-1">
-        {tabs.map((tab) => {
-          const isActive = selectedTab === tab.id
-          return (
-            <button
-              key={tab.id}
-              onClick={() => setSelectedTab(tab.id)}
-              className={`flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-medium transition-colors cursor-pointer ${
-                isActive
-                  ? 'bg-blue-600/20 text-cyan-300 border border-blue-500/30'
-                  : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 border border-transparent'
-              }`}
-            >
-              {tab.icon}
-              <span>{tab.label}</span>
-              {tab.count !== undefined && (
-                <span className="text-[10px] bg-slate-800 px-1 py-0.2 rounded text-slate-400 font-mono">
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          )
-        })}
+    <div className="h-full border-t border-[#1f2735] bg-[#0e1217] flex flex-col select-none shrink-0 overflow-hidden">
+      {/* Plexo Compact Segmented Detail Tab Bar */}
+      <div className="h-8 border-b border-[#1f2735] bg-[#11161d] flex items-center justify-between px-2 shrink-0">
+        <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+          {tabs.map((tab) => {
+            const isActive = selectedTab === tab.id
+            return (
+              <button
+                key={tab.id}
+                onClick={() => setSelectedTab(tab.id)}
+                className={`flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-medium transition-colors cursor-pointer shrink-0 ${
+                  isActive
+                    ? 'bg-[#18212e] text-cyan-300 font-semibold border border-[#2a3a50]'
+                    : 'text-slate-400 hover:text-slate-200 hover:bg-[#151b24] border border-transparent'
+                }`}
+              >
+                {tab.icon}
+                <span>{tab.label}</span>
+                {tab.count !== undefined && (
+                  <span className={`text-[9px] font-mono px-1 py-0.2 rounded ${isActive ? 'bg-cyan-950/80 text-cyan-300' : 'bg-[#161c24] text-slate-500'}`}>
+                    {tab.count}
+                  </span>
+                )}
+              </button>
+            )
+          })}
+        </div>
+
+        {/* Close Button to collapse detail pane */}
+        <button
+          onClick={() => setSelectedInfoHash(null)}
+          className="p-1 rounded hover:bg-[#1a212d] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer shrink-0 ml-2"
+          title="Close details panel"
+          aria-label="Close details"
+        >
+          <X className="w-3.5 h-3.5" />
+        </button>
       </div>
 
       {/* Tab Content */}
-      <div className="flex-1 overflow-hidden bg-slate-950/90">
+      <div className="flex-1 overflow-hidden bg-[#0e1217]">
         {selectedTab === 'overview' && <OverviewTab torrent={torrent} />}
         {selectedTab === 'files' && <FilesTab torrent={torrent} />}
         {selectedTab === 'pieces' && <PiecesTab torrent={torrent} />}

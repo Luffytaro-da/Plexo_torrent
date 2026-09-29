@@ -9,7 +9,7 @@ import type {
   TorrentState
 } from '../../../shared/types'
 
-export type NavigationFilter = 'all' | 'downloading' | 'seeding' | 'completed' | 'paused'
+export type NavigationFilter = 'all' | 'downloading' | 'checking' | 'seeding' | 'completed' | 'paused' | 'error'
 export type DetailTab = 'overview' | 'files' | 'pieces' | 'peers' | 'trackers' | 'networks' | 'activity'
 export type ViewMode = 'torrents' | 'networks'
 

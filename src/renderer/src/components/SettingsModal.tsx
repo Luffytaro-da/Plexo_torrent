@@ -53,28 +53,28 @@ export const SettingsModal: React.FC = () => {
   ]
 
   return (
-    <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm flex items-center justify-center z-50 p-4 select-none">
-      <div className="bg-slate-900 border border-slate-800 rounded-2xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col h-[520px]">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 select-none">
+      <div className="bg-[#141922] border border-[#273244] rounded-xl w-full max-w-2xl overflow-hidden shadow-2xl flex flex-col h-[500px]">
         {/* Modal Header */}
-        <div className="h-12 border-b border-slate-800 px-5 flex items-center justify-between bg-slate-950/80">
-          <div className="flex items-center gap-2.5 font-bold text-sm text-slate-100">
-            <div className="w-6 h-6 rounded-lg bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
-              <Settings className="w-3.5 h-3.5 text-cyan-400" />
+        <div className="h-10 border-b border-[#1f2735] px-3.5 flex items-center justify-between bg-[#11161d]">
+          <div className="flex items-center gap-2 font-bold text-xs text-slate-100">
+            <div className="w-5 h-5 rounded-md bg-cyan-500/10 border border-cyan-500/20 flex items-center justify-center">
+              <Settings className="w-3 h-3 text-cyan-400" />
             </div>
-            <span>Options & Preferences</span>
+            <span>Preferences & Settings</span>
           </div>
           <button
             onClick={() => setSettingsModalOpen(false)}
-            className="p-1.5 rounded-lg hover:bg-slate-800 text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
+            className="p-1 rounded hover:bg-[#1a212d] text-slate-400 hover:text-slate-200 transition-colors cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
-        {/* Modal Content - 2 Column Layout (qBittorrent style) */}
+        {/* Modal Content - 2 Column Layout (Plexo style) */}
         <div className="flex-1 flex overflow-hidden">
           {/* Sidebar Tabs */}
-          <div className="w-48 bg-slate-950/40 border-r border-slate-800 p-2 space-y-1">
+          <div className="w-44 bg-[#11161d] border-r border-[#1f2735] p-2 space-y-0.5">
             {navItems.map((tab) => {
               const Icon = tab.icon
               const isActive = activeTab === tab.id
@@ -82,13 +82,13 @@ export const SettingsModal: React.FC = () => {
                 <button
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
-                  className={`w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-xs font-medium transition-all text-left cursor-pointer ${
+                  className={`w-full flex items-center gap-2 px-2.5 py-1.5 rounded-md text-xs font-medium transition-colors text-left cursor-pointer ${
                     isActive
-                      ? 'bg-blue-600/15 text-cyan-400 border border-cyan-500/30 font-semibold'
-                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+                      ? 'bg-[#18212e] text-cyan-300 font-semibold border border-[#2a3a50]'
+                      : 'text-slate-400 hover:text-slate-200 hover:bg-[#151b24]'
                   }`}
                 >
-                  <Icon className={`w-4 h-4 shrink-0 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
+                  <Icon className={`w-3.5 h-3.5 shrink-0 ${isActive ? 'text-cyan-400' : 'text-slate-400'}`} />
                   <span className="truncate">{tab.label}</span>
                 </button>
               )
@@ -117,7 +117,7 @@ export const SettingsModal: React.FC = () => {
                     Default Destination
                   </h3>
                   <label className="block text-[11px] font-medium text-slate-400 mb-1">
-                    Download Folder
+                    Default Download Directory
                   </label>
                   <div className="flex items-center gap-2">
                     <input

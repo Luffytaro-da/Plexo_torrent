@@ -23,15 +23,15 @@ function getLogIcon(level: ActivityLogEntry['level']) {
 
 export const ActivityLogTab: React.FC<ActivityLogTabProps> = ({ torrent }) => {
   return (
-    <div className="flex-1 flex flex-col h-full p-4 overflow-y-auto text-xs">
-      <div className="bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 font-mono space-y-2">
+    <div className="flex-1 flex flex-col h-full p-3.5 overflow-y-auto text-xs bg-[#0e1217]">
+      <div className="bg-[#12161e] border border-[#1f2735] rounded-lg p-2.5 font-mono space-y-1.5 text-[11px]">
         {torrent.activityLogs.length === 0 ? (
-          <div className="text-slate-500 italic">No activity recorded yet</div>
+          <div className="text-slate-500 italic py-2 text-center font-sans">No activity recorded yet</div>
         ) : (
           torrent.activityLogs.map((log, index) => (
             <div
               key={index}
-              className="flex items-start gap-2.5 py-1 border-b border-slate-900/60 last:border-0"
+              className="flex items-start gap-2.5 py-1 border-b border-[#1a212d] last:border-0"
             >
               <span className="text-[10px] text-slate-500 shrink-0 select-none">
                 {formatDate(log.timestamp)}

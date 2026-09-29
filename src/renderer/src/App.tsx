@@ -87,7 +87,7 @@ export const App: React.FC = () => {
   }, [isDragging])
 
   return (
-    <div className="flex-1 flex flex-col h-screen w-screen overflow-hidden bg-slate-950 text-slate-100">
+    <div className="flex-1 flex flex-col h-screen w-screen overflow-hidden bg-[#0e1217] text-slate-100 font-sans">
       {/* Header */}
       <Header />
 
@@ -97,7 +97,7 @@ export const App: React.FC = () => {
         <Sidebar />
 
         {/* Dynamic Content Area */}
-        <div ref={contentRef} className="flex-1 flex flex-col overflow-hidden bg-slate-900/30 relative">
+        <div ref={contentRef} className="flex-1 flex flex-col overflow-hidden bg-[#0e1217] relative">
           {viewMode === 'networks' ? (
             <NetworksView />
           ) : (
@@ -113,15 +113,15 @@ export const App: React.FC = () => {
                 <TorrentList />
               </div>
 
-              {/* Dynamic Resizable Splitter */}
+              {/* Dynamic Resizable Splitter (Plexo style) */}
               {selectedInfoHash && (
                 <div
                   onMouseDown={handleMouseDown}
                   onDoubleClick={() => setSplitPercent(50)}
                   title="Drag to resize pane (double click to reset)"
-                  className="h-2 bg-slate-900 hover:bg-cyan-500/30 border-y border-slate-800 hover:border-cyan-500/50 cursor-row-resize flex items-center justify-center transition-colors group shrink-0 select-none z-10"
+                  className="h-1.5 bg-[#12161e] hover:bg-cyan-500/20 border-y border-[#1f2735] hover:border-cyan-500/40 cursor-row-resize flex items-center justify-center transition-colors group shrink-0 select-none z-10"
                 >
-                  <div className="w-12 h-1 rounded-full bg-slate-700 group-hover:bg-cyan-400 transition-colors" />
+                  <div className="w-10 h-0.5 rounded-full bg-[#2a3648] group-hover:bg-cyan-400 transition-colors" />
                 </div>
               )}
 
@@ -132,7 +132,7 @@ export const App: React.FC = () => {
                     height: `${100 - splitPercent}%`,
                     transition: isDragging ? 'none' : 'height 0.15s ease-out'
                   }}
-                  className="overflow-hidden flex flex-col bg-slate-950/60"
+                  className="overflow-hidden flex flex-col bg-[#0e1217]"
                 >
                   <TorrentDetailPanel />
                 </div>

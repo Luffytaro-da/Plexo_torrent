@@ -55,34 +55,39 @@ export const PiecesTab: React.FC<PiecesTabProps> = ({ torrent }) => {
   }, [effectiveStates])
 
   return (
-    <div className="flex-1 flex flex-col h-full p-4 overflow-hidden text-xs space-y-3">
-      {/* Header / Summary / Legend */}
-      <div className="flex items-center justify-between bg-slate-900/60 border border-slate-800/80 rounded-xl p-3 shrink-0">
-        <div className="flex items-center gap-6">
+    <div className="flex-1 flex flex-col h-full p-3.5 overflow-hidden text-xs space-y-2.5">
+      {/* Header / Summary / Legend (Plexo style) */}
+      <div className="flex items-center justify-between bg-[#141922] border border-[#212936] rounded-lg p-2.5 shrink-0">
+        <div className="flex items-center gap-4">
           <div>
-            <div className="text-[10px] uppercase font-semibold text-slate-400">Total Pieces</div>
-            <div className="text-sm font-bold text-slate-100 font-mono">
+            <div className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-400">Total Pieces</div>
+            <div className="text-xs font-bold text-slate-100 font-mono">
               {numPieces}{' '}
-              <span className="text-xs font-normal text-slate-400">
+              <span className="text-[10px] font-normal text-slate-400">
                 ({formatBytes(torrent.pieceLength)} each)
               </span>
             </div>
           </div>
 
+          <span className="text-slate-500 font-mono text-xs">·</span>
+
           <div>
-            <div className="text-[10px] uppercase font-semibold text-slate-400">Verified</div>
-            <div className="text-sm font-bold text-emerald-400 font-mono">
+            <div className="text-[10px] font-mono font-semibold uppercase tracking-wider text-slate-400">Verified</div>
+            <div className="text-xs font-bold text-emerald-400 font-mono">
               {stateCounts.verified} ({formatPercent(stateCounts.verified / numPieces)})
             </div>
           </div>
 
           {stateCounts.downloading > 0 && (
-            <div>
-              <div className="text-[10px] uppercase font-semibold text-cyan-400">Live Active</div>
-              <div className="text-sm font-bold text-cyan-400 font-mono animate-pulse">
-                {stateCounts.downloading} downloading
+            <>
+              <span className="text-slate-500 font-mono text-xs">·</span>
+              <div>
+                <div className="text-[10px] font-mono font-semibold uppercase tracking-wider text-cyan-400">Live Active</div>
+                <div className="text-xs font-bold text-cyan-400 font-mono animate-pulse">
+                  {stateCounts.downloading} active
+                </div>
               </div>
-            </div>
+            </>
           )}
         </div>
 
@@ -90,10 +95,10 @@ export const PiecesTab: React.FC<PiecesTabProps> = ({ torrent }) => {
         <div className="flex items-center gap-3">
           {(Object.entries(PIECE_STATE_CONFIG) as [PieceState, { label: string; bgClass: string }][]).map(
             ([key, meta]) => (
-              <div key={key} className="flex items-center gap-1.5 text-[11px] text-slate-300">
-                <span className={`w-2.5 h-2.5 rounded-xs ${meta.bgClass}`} />
+              <div key={key} className="flex items-center gap-1.5 text-[10px] font-mono text-slate-300">
+                <span className={`w-2 h-2 rounded-xs ${meta.bgClass}`} />
                 <span>
-                  {meta.label} ({stateCounts[key]})
+                  {meta.label} <strong className="text-slate-200">({stateCounts[key]})</strong>
                 </span>
               </div>
             )
@@ -102,8 +107,8 @@ export const PiecesTab: React.FC<PiecesTabProps> = ({ torrent }) => {
       </div>
 
       {/* Piece Grid Canvas / Container */}
-      <div className="flex-1 bg-slate-950/80 border border-slate-800/80 rounded-xl p-3 overflow-y-auto relative">
-        <div className="grid grid-cols-[repeat(auto-fill,minmax(12px,1fr))] gap-1">
+      <div className="flex-1 bg-[#10141a] border border-[#1f2735] rounded-lg p-2.5 overflow-y-auto relative">
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(10px,1fr))] gap-1">
           {effectiveStates.map((state, index) => {
             const meta = PIECE_STATE_CONFIG[state] || PIECE_STATE_CONFIG.missing
             const isDownloading = state === 'downloading'
@@ -112,7 +117,7 @@ export const PiecesTab: React.FC<PiecesTabProps> = ({ torrent }) => {
                 key={index}
                 onMouseEnter={() => setHoveredPiece({ index, state })}
                 onMouseLeave={() => setHoveredPiece(null)}
-                className={`h-3 rounded-xs transition-transform hover:scale-125 hover:z-10 cursor-pointer ${
+                className={`h-2.5 rounded-xs transition-transform hover:scale-125 hover:z-10 cursor-pointer ${
                   meta.bgClass
                 } ${isDownloading ? 'animate-pulse ring-1 ring-cyan-300' : ''}`}
               />
@@ -120,14 +125,14 @@ export const PiecesTab: React.FC<PiecesTabProps> = ({ torrent }) => {
           })}
         </div>
 
-        {/* Tooltip */}
+        {/* Hover Inspector Tooltip */}
         {hoveredPiece && (
-          <div className="fixed bottom-6 right-6 bg-slate-900 border border-slate-700 shadow-xl rounded-lg px-3 py-1.5 text-xs text-slate-200 pointer-events-none z-50">
-            <div className="font-semibold text-cyan-400 font-mono">Piece #{hoveredPiece.index}</div>
-            <div className="capitalize text-slate-400">
-              State: <strong className="text-slate-200">{hoveredPiece.state}</strong>
+          <div className="fixed bottom-4 right-4 bg-[#161c24] border border-[#273244] shadow-2xl rounded-md px-2.5 py-1.5 text-xs text-slate-200 pointer-events-none z-50 font-mono">
+            <div className="font-semibold text-cyan-400">Piece #{hoveredPiece.index}</div>
+            <div className="text-[11px] text-slate-300 capitalize">
+              State: <strong className="text-white">{hoveredPiece.state}</strong>
             </div>
-            <div className="text-[10px] text-slate-500 font-mono">Size: {formatBytes(torrent.pieceLength)}</div>
+            <div className="text-[10px] text-slate-400">Size: {formatBytes(torrent.pieceLength)}</div>
           </div>
         )}
       </div>

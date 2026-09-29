@@ -6,49 +6,49 @@ export const STATUS_CONFIG: Record<
 > = {
   restored: {
     label: 'Restored',
-    badgeClass: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20',
+    badgeClass: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30',
     textClass: 'text-indigo-400',
     dotClass: 'bg-indigo-400'
   },
   downloading: {
     label: 'Downloading',
-    badgeClass: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20',
+    badgeClass: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30',
     textClass: 'text-cyan-400',
-    dotClass: 'bg-cyan-400 animate-pulse'
+    dotClass: 'bg-cyan-400 animate-plexo-pulse'
   },
   seeding: {
     label: 'Seeding',
-    badgeClass: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20',
+    badgeClass: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
     textClass: 'text-emerald-400',
     dotClass: 'bg-emerald-400'
   },
   completed: {
     label: 'Completed',
-    badgeClass: 'bg-teal-500/10 text-teal-400 border-teal-500/20',
+    badgeClass: 'bg-teal-500/15 text-teal-300 border-teal-500/30',
     textClass: 'text-teal-400',
     dotClass: 'bg-teal-400'
   },
   checking: {
     label: 'Checking',
-    badgeClass: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+    badgeClass: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
     textClass: 'text-amber-400',
-    dotClass: 'bg-amber-400 animate-spin'
+    dotClass: 'bg-amber-400 animate-pulse'
   },
   paused: {
     label: 'Paused',
-    badgeClass: 'bg-slate-500/10 text-slate-400 border-slate-500/20',
+    badgeClass: 'bg-slate-500/15 text-slate-300 border-slate-600/40',
     textClass: 'text-slate-400',
-    dotClass: 'bg-slate-400'
+    dotClass: 'bg-slate-500'
   },
   stalled: {
     label: 'Stalled',
-    badgeClass: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
+    badgeClass: 'bg-orange-500/15 text-orange-300 border-orange-500/30',
     textClass: 'text-orange-400',
     dotClass: 'bg-orange-400'
   },
   error: {
     label: 'Error',
-    badgeClass: 'bg-rose-500/10 text-rose-400 border-rose-500/20',
+    badgeClass: 'bg-rose-500/15 text-rose-300 border-rose-500/30',
     textClass: 'text-rose-400',
     dotClass: 'bg-rose-400'
   }
@@ -56,9 +56,9 @@ export const STATUS_CONFIG: Record<
 
 export const PIECE_STATE_CONFIG: Record<PieceState, { label: string; color: string; bgClass: string }> = {
   verified: { label: 'Verified', color: '#10b981', bgClass: 'bg-emerald-500' },
-  downloading: { label: 'Downloading', color: '#06b6d4', bgClass: 'bg-cyan-500' },
-  requested: { label: 'Requested', color: '#3b82f6', bgClass: 'bg-blue-500' },
-  corrupted: { label: 'Corrupted', color: '#ef4444', bgClass: 'bg-rose-500' },
+  downloading: { label: 'Downloading', color: '#38bdf8', bgClass: 'bg-cyan-400' },
+  requested: { label: 'Requested', color: '#818cf8', bgClass: 'bg-indigo-400' },
+  corrupted: { label: 'Corrupted', color: '#f87171', bgClass: 'bg-rose-500' },
   skipped: { label: 'Skipped', color: '#64748b', bgClass: 'bg-slate-600' },
   missing: { label: 'Missing', color: '#1e293b', bgClass: 'bg-slate-800' }
 }
@@ -66,14 +66,14 @@ export const PIECE_STATE_CONFIG: Record<PieceState, { label: string; color: stri
 export function getInterfaceKindBadge(kind: NetworkInterfaceKind): { label: string; class: string } {
   switch (kind) {
     case 'wifi':
-      return { label: 'Wi-Fi', class: 'bg-blue-500/10 text-blue-400 border-blue-500/20' }
+      return { label: 'Wi-Fi', class: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' }
     case 'ethernet':
-      return { label: 'Ethernet', class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' }
+      return { label: 'Ethernet', class: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' }
     case 'usb':
-      return { label: 'USB Tether', class: 'bg-purple-500/10 text-purple-400 border-purple-500/20' }
+      return { label: 'USB Tether', class: 'bg-amber-500/15 text-amber-300 border-amber-500/30' }
     case 'bridge':
-      return { label: 'Bridge', class: 'bg-amber-500/10 text-amber-400 border-amber-500/20' }
+      return { label: 'Bridge', class: 'bg-slate-500/15 text-slate-300 border-slate-500/30' }
     default:
-      return { label: 'Network', class: 'bg-slate-500/10 text-slate-400 border-slate-500/20' }
+      return { label: 'Network', class: 'bg-slate-500/15 text-slate-300 border-slate-500/30' }
   }
 }

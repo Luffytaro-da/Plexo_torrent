@@ -8,44 +8,44 @@ interface TrackersTabProps {
 
 export const TrackersTab: React.FC<TrackersTabProps> = ({ torrent }) => {
   return (
-    <div className="flex-1 flex flex-col h-full overflow-hidden text-xs">
-      <div className="flex-1 overflow-y-auto">
+    <div className="flex-1 flex flex-col h-full overflow-hidden text-xs bg-[#0e1217]">
+      <div className="flex-1 overflow-x-auto overflow-y-auto">
         {torrent.trackers.length === 0 ? (
-          <div className="h-full flex flex-col items-center justify-center p-8 text-slate-500">
-            <Radio className="w-8 h-8 mb-2 opacity-50" />
-            <p>No external trackers announced (using DHT/PEX swarm)</p>
+          <div className="h-full flex flex-col items-center justify-center p-8 text-slate-500 font-mono">
+            <Radio className="w-7 h-7 mb-2 opacity-40 text-slate-400" />
+            <p className="text-xs">No external trackers announced (using DHT/PEX swarm)</p>
           </div>
         ) : (
-          <table className="w-full text-left border-collapse">
-            <thead className="sticky top-0 bg-slate-900/95 backdrop-blur-sm border-b border-slate-800 text-[11px] font-semibold text-slate-400 z-10">
+          <table className="w-full text-left border-collapse min-w-[500px]">
+            <thead className="sticky top-0 bg-[#121720]/95 backdrop-blur-xs border-b border-[#212936] text-[10px] font-mono uppercase font-semibold text-slate-400 z-10">
               <tr>
                 <th className="py-2 px-3">Tracker Announce URL</th>
                 <th className="py-2 px-3 w-28">Status</th>
-                <th className="py-2 px-3 w-24">Peers</th>
-                <th className="py-2 px-3 w-24">Seeds</th>
-                <th className="py-2 px-3 w-24">Leechers</th>
+                <th className="py-2 px-3 w-20">Peers</th>
+                <th className="py-2 px-3 w-20">Seeds</th>
+                <th className="py-2 px-3 w-20">Leechers</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-[#1a212d]">
               {torrent.trackers.map((tracker, index) => (
                 <tr
                   key={index}
-                  className="border-b border-slate-800/40 hover:bg-slate-800/40 transition-colors"
+                  className="hover:bg-[#141a24] transition-colors"
                 >
-                  <td className="py-2 px-3 font-mono text-slate-200 truncate max-w-md" title={tracker.announce}>
+                  <td className="py-2 px-3 font-mono text-slate-200 truncate max-w-md text-[11px]" title={tracker.announce}>
                     <div className="flex items-center gap-1.5 truncate">
                       <Server className="w-3.5 h-3.5 text-blue-400 shrink-0" />
                       <span className="truncate">{tracker.announce}</span>
                     </div>
                   </td>
                   <td className="py-2 px-3">
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 capitalize">
+                    <span className="px-1.5 py-0.2 rounded text-[9px] font-mono font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 capitalize">
                       {tracker.status}
                     </span>
                   </td>
-                  <td className="py-2 px-3 text-slate-300 font-mono">{tracker.peers}</td>
-                  <td className="py-2 px-3 text-slate-300 font-mono">{tracker.seeds}</td>
-                  <td className="py-2 px-3 text-slate-300 font-mono">{tracker.leechers}</td>
+                  <td className="py-2 px-3 text-slate-300 font-mono text-[11px]">{tracker.peers}</td>
+                  <td className="py-2 px-3 text-slate-300 font-mono text-[11px]">{tracker.seeds}</td>
+                  <td className="py-2 px-3 text-slate-300 font-mono text-[11px]">{tracker.leechers}</td>
                 </tr>
               ))}
             </tbody>
