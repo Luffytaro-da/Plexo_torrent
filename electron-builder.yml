@@ -1,0 +1,31 @@
+appId: com.relaytorrent.app
+productName: RelayTorrent
+directories:
+  output: dist
+  buildResources: build
+files:
+  - out/**/*
+  - package.json
+  - node_modules/**/*
+win:
+  signAndEditExecutable: false
+  forceCodeSigning: false
+  target:
+    - dir
+    - zip
+  artifactName: ${productName}-Setup-${version}.${ext}
+mac:
+  target:
+    - dmg
+    - zip
+  category: public.app-category.utilities
+  artifactName: ${productName}-${version}.${ext}
+linux:
+  target:
+    - AppImage
+    - deb
+  category: Network
+  artifactName: ${productName}-${version}.${ext}
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
