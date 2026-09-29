@@ -53,4 +53,5 @@ export interface IpcContract {
   chooseDirectory: { args: [defaultPath?: string]; result: string | null }
   chooseTorrentFile: { args: []; result: string | null }
   revealInFolder: { args: [targetPath: string]; result: void }
+  getRoutingDiagnostics: { args: []; result: import('./types').RoutingDiagnosticsReport }
 }

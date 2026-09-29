@@ -22,6 +22,7 @@ export const Sidebar: React.FC = () => {
     viewMode,
     setViewMode,
     telemetry,
+    interfaces: storeInterfaces,
     toggleInterface
   } = useTorrentStore()
 
@@ -45,7 +46,7 @@ export const Sidebar: React.FC = () => {
     { id: 'paused', label: 'Paused / Inactive', icon: <PauseCircle className="w-4 h-4 text-slate-400 shrink-0" /> }
   ]
 
-  const interfaces = telemetry?.interfaces || []
+  const interfaces = telemetry?.interfaces && telemetry.interfaces.length > 0 ? telemetry.interfaces : storeInterfaces
 
   return (
     <aside

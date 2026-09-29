@@ -25,6 +25,7 @@ export const IpcChannels = {
   CHOOSE_DIRECTORY: 'relaytorrent:choose-directory',
   CHOOSE_TORRENT_FILE: 'relaytorrent:choose-torrent-file',
   REVEAL_IN_FOLDER: 'relaytorrent:reveal-in-folder',
+  GET_ROUTING_DIAGNOSTICS: 'relaytorrent:get-routing-diagnostics',
 
   // Push Events (Main -> Renderer)
   TORRENTS_UPDATED: 'relaytorrent:torrents-updated',

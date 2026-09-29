@@ -123,7 +123,16 @@ export interface OutgoingInterfaceSelection {
   address: string
 }
 
+export interface OutgoingConnectionRoutingDecision {
+  infoHash?: string
+  peerId?: string
+  targetInterface?: OutgoingInterfaceSelection
+  fallbackToDefault?: boolean
+}
+
 export interface SocketRelayMetadata {
+  infoHash?: string
+  peerId?: string
   selectedInterface?: OutgoingInterfaceSelection
   selectedLocalAddress?: string
   actualLocalAddress?: string
@@ -139,7 +148,12 @@ const originalConnect = Socket.prototype.connect
 let socketInterceptorInstalled = false
 
 export function installMultiInterfaceSocketInterceptor(
-  getInterface: (host: string, port: number) => OutgoingInterfaceSelection | null
+  getRouting: (host: string, port: number) => OutgoingConnectionRoutingDecision | null,
+  onDiagnosticsEvent?: (
+    event: 'attempt' | 'connect' | 'error' | 'close',
+    meta: SocketRelayMetadata,
+    errorMsg?: string
+  ) => void
 ): void {
   if (socketInterceptorInstalled) return
   socketInterceptorInstalled = true
@@ -163,10 +177,14 @@ export function installMultiInterfaceSocketInterceptor(
         const host = options.host
         const isLocal = host === 'localhost' || host.startsWith('127.') || host === '::1'
         if (!isLocal && !options.localAddress) {
-          const selected = getInterface(host, options.port)
-          if (selected && selected.address) {
+          const decision = getRouting(host, options.port)
+          const selected = decision?.targetInterface
+
+          if (selected && selected.address && !decision?.fallbackToDefault) {
             options.localAddress = selected.address
             const meta: SocketRelayMetadata = {
+              infoHash: decision?.infoHash,
+              peerId: decision?.peerId,
               selectedInterface: selected,
               selectedLocalAddress: selected.address,
               actualLocalAddress: undefined,
@@ -180,29 +198,37 @@ export function installMultiInterfaceSocketInterceptor(
             ;(this as any)._relayInterface = selected
             ;(this as any)._selectedLocalAddress = selected.address
 
+            onDiagnosticsEvent?.('attempt', meta)
+
             this.once('connect', () => {
               const actual = this.localAddress
               meta.actualLocalAddress = actual
               meta.connectionStatus = 'connected'
               if (actual && actual !== selected.address) {
                 meta.routingStatus = 'fallback'
-                meta.fallbackReason = 'OS routed connection through default gateway instead of selected adapter'
+                meta.fallbackReason = 'Windows routed connection through default gateway instead of selected adapter'
                 ;(this as any)._fallbackReason = meta.fallbackReason
               } else {
                 meta.routingStatus = 'bound'
               }
+              onDiagnosticsEvent?.('connect', meta)
             })
 
             this.once('error', (err: any) => {
               meta.connectionStatus = 'failed'
+              const errMsg = err?.message || String(err)
               if (err && (err.code === 'ENETUNREACH' || err.code === 'EHOSTUNREACH' || err.code === 'EADDRNOTAVAIL')) {
-                meta.fallbackReason = `Network unreachable on selected adapter (${err.code})`
-                ;(this as any)._fallbackReason = meta.fallbackReason
+                meta.fallbackReason = `Selected adapter unreachable for destination (${err.code})`
+              } else {
+                meta.fallbackReason = `Connection error: ${errMsg}`
               }
+              ;(this as any)._fallbackReason = meta.fallbackReason
+              onDiagnosticsEvent?.('error', meta, meta.fallbackReason)
             })
 
             this.once('close', () => {
               meta.connectionStatus = 'closed'
+              onDiagnosticsEvent?.('close', meta)
             })
           }
         }

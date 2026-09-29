@@ -10,6 +10,8 @@ const DISCOVERY_TIMEOUT_MS = 5000
 interface WindowsAdapter {
   Name: string
   InterfaceDescription: string
+  Status: string
+  LinkSpeed: string
   NdisPhysicalMedium: number
 }
 
@@ -51,7 +53,7 @@ let lastWindowsAdapterFetch = 0
 async function getWindowsAdapters(): Promise<Map<string, WindowsAdapter>> {
   if (process.platform !== 'win32') return new Map()
   const now = Date.now()
-  if (now - lastWindowsAdapterFetch < 5000 && cachedWindowsAdapters.size > 0) {
+  if (now - lastWindowsAdapterFetch < 4000 && cachedWindowsAdapters.size > 0) {
     return cachedWindowsAdapters
   }
   try {
@@ -62,7 +64,7 @@ async function getWindowsAdapters(): Promise<Map<string, WindowsAdapter>> {
         '-NoProfile',
         '-NonInteractive',
         '-Command',
-        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-NetAdapter -ErrorAction Stop | Select-Object Name, InterfaceDescription, NdisPhysicalMedium | ConvertTo-Json -Compress'
+        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-NetAdapter -ErrorAction Stop | Select-Object Name, InterfaceDescription, Status, LinkSpeed, NdisPhysicalMedium | ConvertTo-Json -Compress'
       ],
       { windowsHide: true, timeout: DISCOVERY_TIMEOUT_MS, encoding: 'utf8' }
     )
@@ -81,6 +83,68 @@ async function getWindowsAdapters(): Promise<Map<string, WindowsAdapter>> {
     // Return existing cache on error
   }
   return cachedWindowsAdapters
+}
+
+export async function getWindowsPhysicalAdapterStats(): Promise<Map<string, { receivedBytes: number; sentBytes: number }>> {
+  if (process.platform !== 'win32') return new Map()
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        '[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-NetAdapterStatistics -ErrorAction Stop | Select-Object Name, ReceivedBytes, SentBytes | ConvertTo-Json -Compress'
+      ],
+      { windowsHide: true, timeout: 3500, encoding: 'utf8' }
+    )
+    const clean = stdout.trim().replace(/^\uFEFF/, '')
+    if (!clean) return new Map()
+    const parsed = JSON.parse(clean)
+    const list = Array.isArray(parsed) ? parsed : [parsed]
+    const map = new Map<string, { receivedBytes: number; sentBytes: number }>()
+    for (const item of list) {
+      if (item && item.Name) {
+        map.set(item.Name, {
+          receivedBytes: Number(item.ReceivedBytes) || 0,
+          sentBytes: Number(item.SentBytes) || 0
+        })
+      }
+    }
+    return map
+  } catch {
+    return new Map()
+  }
+}
+
+export async function getWindowsRoutesSummary(): Promise<{ destinationPrefix: string; nextHop: string; interfaceAlias: string; metric: number }[]> {
+  if (process.platform !== 'win32') return []
+  try {
+    const { stdout } = await execFileAsync(
+      'powershell.exe',
+      [
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        "[Console]::OutputEncoding = [System.Text.Encoding]::UTF8; Get-NetRoute -DestinationPrefix '0.0.0.0/0' -ErrorAction Stop | Select-Object DestinationPrefix, NextHop, InterfaceAlias, RouteMetric | ConvertTo-Json -Compress"
+      ],
+      { windowsHide: true, timeout: 3500, encoding: 'utf8' }
+    )
+    const clean = stdout.trim().replace(/^\uFEFF/, '')
+    if (!clean) return []
+    const parsed = JSON.parse(clean)
+    const list = Array.isArray(parsed) ? parsed : [parsed]
+    return list.map((item: any) => ({
+      destinationPrefix: String(item.DestinationPrefix || '0.0.0.0/0'),
+      nextHop: String(item.NextHop || ''),
+      interfaceAlias: String(item.InterfaceAlias || ''),
+      metric: Number(item.RouteMetric) || 0
+    }))
+  } catch {
+    return []
+  }
 }
 
 export async function listActiveInterfaces(): Promise<NetworkInterfaceInfo[]> {
@@ -116,6 +180,8 @@ export async function listActiveInterfaces(): Promise<NetworkInterfaceInfo[]> {
       kind = 'ethernet'
     }
 
+    const isOnline = adapter ? adapter.Status === 'Up' : true
+
     result.push({
       id: device,
       device,
@@ -130,7 +196,9 @@ export async function listActiveInterfaces(): Promise<NetworkInterfaceInfo[]> {
       bytesDownloaded: 0,
       bytesUploaded: 0,
       activePeers: 0,
-      isOnline: true
+      isOnline,
+      routingState: isOnline ? 'enabled' : 'offline',
+      isPhysicallyConfirmed: false
     })
   }
 

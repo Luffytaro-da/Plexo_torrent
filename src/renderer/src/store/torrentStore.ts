@@ -48,6 +48,7 @@ interface TorrentStoreState {
   recheckTorrent: (infoHash: string) => Promise<void>
   removeTorrent: (infoHash: string, deleteFiles: boolean) => Promise<void>
   toggleInterface: (id: string, enabled: boolean) => Promise<void>
+  refreshInterfaces: () => Promise<void>
   setFilePriorities: (infoHash: string, priorities: Record<number, TorrentFilePriority>) => Promise<void>
   setTorrentInterfacePolicy: (infoHash: string, policy: InterfacePolicy) => Promise<void>
   updateSettings: (patch: Partial<GlobalSettings>) => Promise<void>
@@ -151,7 +152,20 @@ export const useTorrentStore = create<TorrentStoreState>((set, get) => ({
   toggleInterface: async (id, enabled) => {
     if (window.relayTorrent) {
       const updated = await window.relayTorrent.setInterfaceEnabled(id, enabled)
-      set({ interfaces: updated })
+      set((state) => ({
+        interfaces: updated,
+        telemetry: state.telemetry ? { ...state.telemetry, interfaces: updated } : null
+      }))
+    }
+  },
+
+  refreshInterfaces: async () => {
+    if (window.relayTorrent) {
+      const updated = await window.relayTorrent.refreshInterfaces()
+      set((state) => ({
+        interfaces: updated,
+        telemetry: state.telemetry ? { ...state.telemetry, interfaces: updated } : null
+      }))
     }
   },
 

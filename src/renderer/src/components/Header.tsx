@@ -28,6 +28,7 @@ const SPEED_PRESETS = [
 export const Header: React.FC = () => {
   const {
     telemetry,
+    interfaces: storeInterfaces,
     settings,
     updateSettings,
     setAddModalOpen,
@@ -43,7 +44,9 @@ export const Header: React.FC = () => {
 
   const downSpeed = telemetry?.totalDownloadSpeed || 0
   const upSpeed = telemetry?.totalUploadSpeed || 0
-  const onlineIfaces = telemetry?.interfaces.filter((i) => i.isOnline && i.enabled).length || 0
+  const interfaces = telemetry?.interfaces && telemetry.interfaces.length > 0 ? telemetry.interfaces : storeInterfaces
+  const onlineIfaces = interfaces.filter((i) => i.isOnline && i.enabled).length
+  const confirmedPhysicalCount = interfaces.filter((i) => i.isPhysicallyConfirmed && (i.downloadSpeed > 0 || (i.physicalBytesReceived && i.physicalBytesReceived > 0))).length
 
   const currentDownloadLimit = settings?.globalDownloadLimit ?? -1
   const currentUploadLimit = settings?.globalUploadLimit ?? -1
@@ -160,7 +163,12 @@ export const Header: React.FC = () => {
           >
             <Radio className="w-3.5 h-3.5 text-blue-400" />
             <span className="text-slate-400 font-medium">
-              <strong className="text-slate-200">{onlineIfaces}</strong> Networks
+              <strong className="text-slate-200">{onlineIfaces}</strong> Adapters
+              {confirmedPhysicalCount > 1 ? (
+                <span className="ml-1 text-[10px] text-emerald-400 font-semibold">({confirmedPhysicalCount} Confirmed)</span>
+              ) : onlineIfaces > 1 ? (
+                <span className="ml-1 text-[10px] text-amber-400 font-semibold">(1 Confirmed)</span>
+              ) : null}
             </span>
           </div>
         </div>

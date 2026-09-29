@@ -339,4 +339,53 @@ describe('Adapter Toggle and Preference Persistence (Finding 2)', () => {
     const eth = mergedInterfaces.find((i) => i.id === 'eth0')
     expect(eth?.enabled).toBe(true)
   })
+
+  it('excludes disabled interfaces from swarm routing in InterfacePolicyEngine', async () => {
+    const { InterfacePolicyEngine } = await import('../../src/main/network/interfacePolicy')
+
+    const interfaces: NetworkInterfaceInfo[] = [
+      {
+        id: 'eth0',
+        device: 'eth0',
+        displayName: 'Ethernet Adapter',
+        address: '192.168.1.10',
+        ipv6Addresses: [],
+        kind: 'ethernet',
+        enabled: true,
+        downloadSpeed: 0,
+        uploadSpeed: 0,
+        bytesDownloaded: 0,
+        bytesUploaded: 0,
+        activePeers: 0,
+        isOnline: true
+      },
+      {
+        id: 'wlan0',
+        device: 'wlan0',
+        displayName: 'Wi-Fi Adapter',
+        address: '192.168.43.20',
+        ipv6Addresses: [],
+        kind: 'wifi',
+        enabled: false, // Disabled by user
+        downloadSpeed: 0,
+        uploadSpeed: 0,
+        bytesDownloaded: 0,
+        bytesUploaded: 0,
+        activePeers: 0,
+        isOnline: true
+      }
+    ]
+
+    // Automatic mode policy should only select enabled interfaces
+    const eligible = InterfacePolicyEngine.getEligibleInterfaces({ mode: 'automatic' }, interfaces)
+    expect(eligible.length).toBe(1)
+    expect(eligible[0].id).toBe('eth0')
+
+    const selected = InterfacePolicyEngine.selectInterfaceForConnection(
+      { mode: 'automatic' },
+      interfaces,
+      1
+    )
+    expect(selected?.id).toBe('eth0')
+  })
 })

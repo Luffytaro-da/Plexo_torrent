@@ -30,7 +30,8 @@ const methodToChannel: Record<keyof IpcContract, string> = {
   updateSettings: IpcChannels.UPDATE_SETTINGS,
   chooseDirectory: IpcChannels.CHOOSE_DIRECTORY,
   chooseTorrentFile: IpcChannels.CHOOSE_TORRENT_FILE,
-  revealInFolder: IpcChannels.REVEAL_IN_FOLDER
+  revealInFolder: IpcChannels.REVEAL_IN_FOLDER,
+  getRoutingDiagnostics: IpcChannels.GET_ROUTING_DIAGNOSTICS
 }
 
 const contractMethods = {} as ContractApi

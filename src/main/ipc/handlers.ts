@@ -128,4 +128,8 @@ export function registerIpcHandlers(
       shell.showItemInFolder(targetPath)
     }
   })
+
+  ipcMain.handle(IpcChannels.GET_ROUTING_DIAGNOSTICS, async () => {
+    return engine.getRoutingDiagnostics()
+  })
 }

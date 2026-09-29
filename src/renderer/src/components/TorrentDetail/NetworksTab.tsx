@@ -97,19 +97,33 @@ export const NetworksTab: React.FC<NetworksTabProps> = ({ torrent }) => {
                   </td>
 
                   <td className="py-2.5 px-3">
-                    <span
-                      className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider ${
-                        routingStatus === 'bound'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : routingStatus === 'fallback'
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                          : routingStatus === 'offline'
-                          ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
-                          : 'bg-slate-800 text-slate-400 border border-slate-700'
-                      }`}
-                    >
-                      {routingStatus}
-                    </span>
+                    {(() => {
+                      let badgeClass = 'bg-slate-800 text-slate-400 border-slate-700'
+                      let label: string = routingStatus
+                      if (routingStatus === 'confirmed physical traffic') {
+                        badgeClass = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                        label = 'Confirmed Physical Traffic'
+                      } else if (routingStatus === 'transferring') {
+                        badgeClass = 'bg-cyan-500/10 text-cyan-400 border-cyan-500/20'
+                      } else if (routingStatus === 'connected') {
+                        badgeClass = 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                      } else if (routingStatus === 'socket-bound') {
+                        badgeClass = 'bg-indigo-500/10 text-indigo-400 border-indigo-500/20'
+                      } else if (routingStatus === 'fallback') {
+                        badgeClass = 'bg-amber-500/10 text-amber-400 border-amber-500/20'
+                      } else if (routingStatus === 'unsupported') {
+                        badgeClass = 'bg-rose-500/10 text-rose-400 border-rose-500/20'
+                      } else if (routingStatus === 'offline') {
+                        badgeClass = 'bg-slate-800 text-slate-500 border-slate-700'
+                      }
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider border ${badgeClass}`}
+                        >
+                          {label}
+                        </span>
+                      )
+                    })()}
                   </td>
 
                   <td className="py-2.5 px-3 font-mono text-slate-300">{iface.address}</td>

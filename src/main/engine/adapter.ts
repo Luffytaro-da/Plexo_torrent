@@ -45,4 +45,5 @@ export interface ITorrentEngineAdapter {
   updateSettings(settings: GlobalSettings): Promise<void>
   refreshInterfaces(): Promise<import('../../shared/types').NetworkInterfaceInfo[]>
   getInterfaces(): import('../../shared/types').NetworkInterfaceInfo[]
+  getRoutingDiagnostics(): Promise<import('../../shared/types').RoutingDiagnosticsReport>
 }

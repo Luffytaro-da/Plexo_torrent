@@ -18,12 +18,23 @@ import type {
   TorrentTrackerInfo,
   VerificationJobState,
   VerificationStatus,
-  TorrentInterfaceTelemetry
+  TorrentInterfaceTelemetry,
+  InterfaceRoutingDetailedStatus,
+  RoutingDiagnosticsReport
 } from '../../shared/types'
-import { listActiveInterfaces } from '../network/interfaces'
+import {
+  listActiveInterfaces,
+  getWindowsPhysicalAdapterStats,
+  getWindowsRoutesSummary
+} from '../network/interfaces'
 import { InterfacePolicyEngine } from '../network/interfacePolicy'
 import { NetworkTelemetryTracker } from '../network/telemetry'
-import { installMultiInterfaceSocketInterceptor, getPlatformBindingCapability } from '../network/deviceBinding'
+import {
+  installMultiInterfaceSocketInterceptor,
+  getPlatformBindingCapability,
+  type OutgoingConnectionRoutingDecision
+} from '../network/deviceBinding'
+import { PeerDiagnosticsTracker } from '../network/peerDiagnostics'
 import type { Database } from '../persistence/database'
 import type { ITorrentEngineAdapter, TorrentEngineEvents } from './adapter'
 import { PieceManager } from './pieceManager'
@@ -103,8 +114,9 @@ export class TorrentEngine implements ITorrentEngineAdapter {
   private telemetryTracker = new NetworkTelemetryTracker()
   private updateTimer: NodeJS.Timeout | null = null
   private isDestroyed = false
-  private globalConnectionCounter = 0
   private currentDrainingSession: ActiveTorrentSession | null = null
+  private peerDiagnosticsTracker = new PeerDiagnosticsTracker(300)
+  private activePeerRoutingDecisions = new Map<string, OutgoingConnectionRoutingDecision>()
 
   constructor(settings: GlobalSettings, database: Database, events: TorrentEngineEvents) {
     this.settings = settings
@@ -116,20 +128,65 @@ export class TorrentEngine implements ITorrentEngineAdapter {
     this.settings = settings
     await this.refreshInterfaces()
 
-    // Install multi-network interface socket router
-    installMultiInterfaceSocketInterceptor((_host, _port) => {
-      const activeSession = this.currentDrainingSession || Array.from(this.sessions.values()).find(
-        (s) => s.status === 'downloading' || s.status === 'seeding'
-      )
-      const policy = activeSession?.interfacePolicy || this.settings.defaultInterfacePolicy
-      this.globalConnectionCounter++
-      const iface = InterfacePolicyEngine.selectInterfaceForConnection(
-        policy,
-        this.interfaces,
-        this.globalConnectionCounter
-      )
-      return iface ? { id: iface.id, displayName: iface.displayName, address: iface.address } : null
-    })
+    // Install deterministic multi-network interface socket router with per-peer diagnostics
+    installMultiInterfaceSocketInterceptor(
+      (host, port) => {
+        const key = `${host}:${port}`
+        const decision = this.activePeerRoutingDecisions.get(key)
+        if (decision) {
+          return decision
+        }
+
+        const activeSession = this.currentDrainingSession || Array.from(this.sessions.values()).find(
+          (s) => s.status === 'downloading' || s.status === 'seeding'
+        )
+        if (activeSession) {
+          activeSession.connectionCounter++
+          const onlineIfaces = this.interfaces.filter((i) => i.isOnline && i.enabled)
+          const iface = InterfacePolicyEngine.selectInterfaceForConnection(
+            activeSession.interfacePolicy,
+            onlineIfaces,
+            activeSession.connectionCounter
+          )
+          if (iface) {
+            return {
+              infoHash: activeSession.infoHash,
+              peerId: key,
+              targetInterface: { id: iface.id, displayName: iface.displayName, address: iface.address }
+            }
+          }
+        }
+        return null
+      },
+      (event, meta, errorMsg) => {
+        const infoHash = meta.infoHash || 'unknown'
+        const parts = meta.peerId ? meta.peerId.split(':') : []
+        const ip = parts[0] || 'unknown'
+        const port = Number(parts[1]) || 0
+        if (event === 'attempt') {
+          this.peerDiagnosticsTracker.recordConnectionAttempt(infoHash, ip, port, meta.protocol, meta.selectedInterface)
+        } else if (event === 'connect') {
+          this.peerDiagnosticsTracker.recordConnectionSuccess(
+            infoHash,
+            ip,
+            port,
+            meta.actualLocalAddress,
+            meta.selectedInterface?.displayName,
+            meta.fallbackReason
+          )
+        } else if (event === 'error') {
+          this.peerDiagnosticsTracker.recordConnectionFailure(
+            infoHash,
+            ip,
+            port,
+            errorMsg || 'connection failed',
+            meta.actualLocalAddress
+          )
+        } else if (event === 'close') {
+          this.peerDiagnosticsTracker.recordClosed(infoHash, ip, port)
+        }
+      }
+    )
 
     const dhtConfig = settings.enableDht !== false
       ? {
@@ -582,6 +639,26 @@ export class TorrentEngine implements ITorrentEngineAdapter {
         ;(wtTorrent as any)._relayDrainHooked = true
         ;(wtTorrent as any)._drain = () => {
           this.currentDrainingSession = session
+          const q = (wtTorrent as any)._queue
+          if (Array.isArray(q) && q.length > 0) {
+            const nextPeer = q[0]
+            if (nextPeer && nextPeer.addr) {
+              session.connectionCounter++
+              const onlineIfaces = this.interfaces.filter((i) => i.isOnline && i.enabled)
+              const target = InterfacePolicyEngine.selectInterfaceForConnection(
+                session.interfacePolicy,
+                onlineIfaces,
+                session.connectionCounter
+              )
+              if (target) {
+                this.activePeerRoutingDecisions.set(nextPeer.addr, {
+                  infoHash: session.infoHash,
+                  peerId: nextPeer.addr,
+                  targetInterface: { id: target.id, displayName: target.displayName, address: target.address }
+                })
+              }
+            }
+          }
           try {
             originalDrain()
           } finally {
@@ -854,13 +931,13 @@ export class TorrentEngine implements ITorrentEngineAdapter {
       const boundIface = relayMeta?.selectedInterface || (wire as any)._relayInterface || socket?._relayInterface
       const selectedInterface = boundIface || InterfacePolicyEngine.selectInterfaceForConnection(
         session.interfacePolicy,
-        this.interfaces,
+        this.interfaces.filter((i) => i.isOnline && i.enabled),
         session.connectionCounter
       )
 
       const actualLocal = socket?.localAddress || relayMeta?.actualLocalAddress
-      const matchedIface = actualLocal ? this.interfaces.find((i) => i.address === actualLocal) : null
-      const effectiveIface = matchedIface || selectedInterface
+      const matchedIface = actualLocal ? this.interfaces.find((i) => i.address === actualLocal && i.isOnline && i.enabled) : null
+      const effectiveIface = matchedIface || null
 
       const peerId = (wire as unknown as { peerId?: string }).peerId || wire.remoteAddress || `peer-${session.connectionCounter}`
       const peerInfo: TorrentPeerInfo = {
@@ -887,6 +964,8 @@ export class TorrentEngine implements ITorrentEngineAdapter {
       }
 
       session.peers.set(peerId, peerInfo)
+      this.peerDiagnosticsTracker.recordHandshake(session.infoHash, peerId, peerInfo.ip, peerInfo.port, true)
+
       this.logActivity(
         session,
         'info',
@@ -913,7 +992,7 @@ export class TorrentEngine implements ITorrentEngineAdapter {
           downloadContributionPercent: 0,
           uploadContributionPercent: 0,
           lastActivityTime: null,
-          routingStatus: 'bound',
+          routingStatus: 'socket-bound',
           bindingCapability: getPlatformBindingCapability().capability,
           bindingCapabilityReason: getPlatformBindingCapability().reason
         })
@@ -923,7 +1002,7 @@ export class TorrentEngine implements ITorrentEngineAdapter {
       tStat.connectionCount++
       if (actualLocal && selectedInterface && actualLocal === selectedInterface.address) {
         tStat.successfullyBoundConnectionCount++
-        tStat.routingStatus = 'bound'
+        tStat.routingStatus = 'socket-bound'
       } else if (relayMeta?.fallbackReason || (selectedInterface && actualLocal && actualLocal !== selectedInterface.address)) {
         tStat.fallbackConnectionCount++
         tStat.routingStatus = 'fallback'
@@ -941,14 +1020,14 @@ export class TorrentEngine implements ITorrentEngineAdapter {
         peerInfo.bytesReceived = (peerInfo.bytesReceived || 0) + bytes
 
         const currentActual = socket?.localAddress || peerInfo.actualLocalAddress
-        const matched = currentActual ? this.interfaces.find((i) => i.address === currentActual) : null
-        const attrId = matched?.id || effectiveIface?.id || 'default'
+        const matched = currentActual ? this.interfaces.find((i) => i.address === currentActual && i.isOnline && i.enabled) : null
+        const attrId = matched?.id || 'default'
 
         let stat = session.interfaceTelemetry.get(attrId)
         if (!stat) {
-          stat = {
+          const newStat: TorrentInterfaceTelemetry = {
             interfaceId: attrId,
-            interfaceName: matched?.displayName || effectiveIface?.displayName || 'Default Route',
+            interfaceName: matched?.displayName || 'Default Route',
             localAddress: matched?.address || currentActual || '',
             activePeerCount: 0,
             connectedPeerCount: 0,
@@ -964,20 +1043,21 @@ export class TorrentEngine implements ITorrentEngineAdapter {
             downloadContributionPercent: 0,
             uploadContributionPercent: 0,
             lastActivityTime: null,
-            routingStatus: 'bound',
+            routingStatus: matched ? 'socket-bound' : 'fallback',
             bindingCapability: getPlatformBindingCapability().capability,
             bindingCapabilityReason: getPlatformBindingCapability().reason
           }
-          session.interfaceTelemetry.set(attrId, stat)
+          session.interfaceTelemetry.set(attrId, newStat)
+          stat = newStat
         }
 
         stat.downloadBytes += bytes
         stat.lastActivityTime = Date.now()
         if (matched) {
           this.telemetryTracker.recordDownload(matched.id, bytes)
-        } else if (effectiveIface) {
-          this.telemetryTracker.recordDownload(effectiveIface.id, bytes)
         }
+
+        this.peerDiagnosticsTracker.recordBytes(session.infoHash, peerInfo.ip, peerInfo.port, bytes, 0)
       })
 
       wire.on('upload', (bytes: number) => {
@@ -990,14 +1070,14 @@ export class TorrentEngine implements ITorrentEngineAdapter {
         peerInfo.bytesUploaded = (peerInfo.bytesUploaded || 0) + bytes
 
         const currentActual = socket?.localAddress || peerInfo.actualLocalAddress
-        const matched = currentActual ? this.interfaces.find((i) => i.address === currentActual) : null
-        const attrId = matched?.id || effectiveIface?.id || 'default'
+        const matched = currentActual ? this.interfaces.find((i) => i.address === currentActual && i.isOnline && i.enabled) : null
+        const attrId = matched?.id || 'default'
 
         let stat = session.interfaceTelemetry.get(attrId)
         if (!stat) {
-          stat = {
+          const newStat: TorrentInterfaceTelemetry = {
             interfaceId: attrId,
-            interfaceName: matched?.displayName || effectiveIface?.displayName || 'Default Route',
+            interfaceName: matched?.displayName || 'Default Route',
             localAddress: matched?.address || currentActual || '',
             activePeerCount: 0,
             connectedPeerCount: 0,
@@ -1013,20 +1093,21 @@ export class TorrentEngine implements ITorrentEngineAdapter {
             downloadContributionPercent: 0,
             uploadContributionPercent: 0,
             lastActivityTime: null,
-            routingStatus: 'bound',
+            routingStatus: matched ? 'socket-bound' : 'fallback',
             bindingCapability: getPlatformBindingCapability().capability,
             bindingCapabilityReason: getPlatformBindingCapability().reason
           }
-          session.interfaceTelemetry.set(attrId, stat)
+          session.interfaceTelemetry.set(attrId, newStat)
+          stat = newStat
         }
 
         stat.uploadBytes += bytes
         stat.lastActivityTime = Date.now()
         if (matched) {
           this.telemetryTracker.recordUpload(matched.id, bytes)
-        } else if (effectiveIface) {
-          this.telemetryTracker.recordUpload(effectiveIface.id, bytes)
         }
+
+        this.peerDiagnosticsTracker.recordBytes(session.infoHash, peerInfo.ip, peerInfo.port, 0, bytes)
       })
 
       // Live block-level chunk arrival
@@ -1041,6 +1122,7 @@ export class TorrentEngine implements ITorrentEngineAdapter {
         peerInfo.connectionStatus = 'closed'
         session.peers.delete(peerId)
         session.scheduler.clearPeerRequests(peerId)
+        this.peerDiagnosticsTracker.recordClosed(session.infoHash, peerInfo.ip, peerInfo.port)
       })
     })
 
@@ -1493,27 +1575,32 @@ export class TorrentEngine implements ITorrentEngineAdapter {
         const activePeers = Array.from(session.peers.values()).filter(p => (p.interfaceId || 'default') === ifaceId)
         const currentDownloadSpeed = activePeers.reduce((sum, p) => sum + p.downloadSpeed, 0)
         const currentUploadSpeed = activePeers.reduce((sum, p) => sum + p.uploadSpeed, 0)
-
-        const downloadContributionPercent = downloadedBytes > 0
-          ? Math.min(100, Math.round((base.downloadBytes / downloadedBytes) * 1000) / 10)
-          : 0
-        const uploadContributionPercent = session.uploadedBytes > 0
-          ? Math.min(100, Math.round((base.uploadBytes / session.uploadedBytes) * 1000) / 10)
-          : 0
-
-        let routingStatus: 'bound' | 'fallback' | 'offline' | 'idle' = 'idle'
-        const matchingIface = this.interfaces.find(i => i.id === ifaceId)
+        const matchingIface = this.interfaces.find((i) => i.id === ifaceId)
+        let routingStatus: InterfaceRoutingDetailedStatus = 'idle'
         if (matchingIface && (!matchingIface.isOnline || !matchingIface.enabled)) {
           routingStatus = 'offline'
+        } else if (matchingIface?.isPhysicallyConfirmed && currentDownloadSpeed > 0) {
+          routingStatus = 'confirmed physical traffic'
+        } else if (currentDownloadSpeed > 0) {
+          routingStatus = 'transferring'
         } else if (activePeers.length > 0) {
           if (base.successfullyBoundConnectionCount > 0) {
-            routingStatus = 'bound'
+            routingStatus = 'connected'
           } else if (base.fallbackConnectionCount > 0) {
             routingStatus = 'fallback'
           } else {
-            routingStatus = 'bound'
+            routingStatus = 'socket-bound'
           }
         }
+
+        // If interface has 0 confirmed physical traffic, enforce 0% contribution
+        const effectiveDlPercent = (currentDownloadSpeed > 0 || (matchingIface?.isPhysicallyConfirmed && base.downloadBytes > 0))
+          ? (downloadedBytes > 0 ? Math.min(100, Math.round((base.downloadBytes / downloadedBytes) * 1000) / 10) : 0)
+          : 0
+
+        const effectiveUlPercent = (currentUploadSpeed > 0 || (matchingIface?.isPhysicallyConfirmed && base.uploadBytes > 0))
+          ? (session.uploadedBytes > 0 ? Math.min(100, Math.round((base.uploadBytes / session.uploadedBytes) * 1000) / 10) : 0)
+          : 0
 
         interfaceTelemetryList.push({
           ...base,
@@ -1521,13 +1608,18 @@ export class TorrentEngine implements ITorrentEngineAdapter {
           connectedPeerCount: activePeers.filter(p => p.connectionStatus === 'connected').length,
           connectingPeerCount: activePeers.filter(p => p.connectionStatus === 'connecting').length,
           activePeerIds: activePeers.map(p => p.id),
-          currentDownloadSpeed,
-          currentUploadSpeed,
-          downloadContributionPercent,
-          uploadContributionPercent,
+          currentDownloadSpeed: (matchingIface?.isPhysicallyConfirmed || !matchingIface) ? currentDownloadSpeed : 0,
+          currentUploadSpeed: (matchingIface?.isPhysicallyConfirmed || !matchingIface) ? currentUploadSpeed : 0,
+          downloadContributionPercent: effectiveDlPercent,
+          uploadContributionPercent: effectiveUlPercent,
           routingStatus,
           bindingCapability: platformCap.capability,
-          bindingCapabilityReason: platformCap.reason
+          bindingCapabilityReason: platformCap.reason,
+          physicalBytesReceived: matchingIface?.physicalBytesReceived,
+          physicalBytesSent: matchingIface?.physicalBytesSent,
+          physicalDownloadSpeed: matchingIface?.physicalDownloadSpeed,
+          physicalUploadSpeed: matchingIface?.physicalUploadSpeed,
+          isPhysicallyConfirmed: matchingIface?.isPhysicallyConfirmed
         })
       }
     }
@@ -1560,7 +1652,7 @@ export class TorrentEngine implements ITorrentEngineAdapter {
       remainingBytes: Math.max(0, session.totalBytes - verifiedBytes),
       files,
       trackers: session.trackers,
-      peers: (isChecking || isPaused) ? [] : Array.from(session.peers.values()),
+      peers: isChecking ? [] : Array.from(session.peers.values()),
       peerCount,
       seedCount: (isChecking || isPaused) ? 0 : (wt ? (wt as any).numPeers || 0 : 0),
       interfacePolicy: session.interfacePolicy,
@@ -1666,9 +1758,43 @@ export class TorrentEngine implements ITorrentEngineAdapter {
         }
       }
 
+      if (process.platform === 'win32') {
+        try {
+          void getWindowsPhysicalAdapterStats().then((statsMap) => {
+            this.telemetryTracker.updatePhysicalStats(statsMap)
+          })
+        } catch {}
+      }
+
       const telemetry = this.telemetryTracker.getSystemTelemetry(this.interfaces, activeCount)
+      this.interfaces = telemetry.interfaces
       this.events.onTelemetryUpdated(telemetry)
       this.events.onTorrentsUpdated(this.getAllTorrents())
     }, TELEMETRY_BROADCAST_INTERVAL_MS)
+  }
+
+  async getRoutingDiagnostics(): Promise<RoutingDiagnosticsReport> {
+    const physicalList: { name: string; receivedBytes: number; sentBytes: number }[] = []
+    let routes: { destinationPrefix: string; nextHop: string; interfaceAlias: string; metric: number }[] = []
+
+    if (process.platform === 'win32') {
+      try {
+        const statsMap = await getWindowsPhysicalAdapterStats()
+        for (const [name, s] of statsMap.entries()) {
+          physicalList.push({ name, receivedBytes: s.receivedBytes, sentBytes: s.sentBytes })
+        }
+        routes = await getWindowsRoutesSummary()
+      } catch {}
+    }
+
+    return {
+      timestamp: Date.now(),
+      platform: process.platform,
+      bindingCapability: getPlatformBindingCapability().reason,
+      interfaces: this.getInterfaces(),
+      physicalAdapterStats: physicalList,
+      routesSummary: routes,
+      activePeersDiagnostics: this.peerDiagnosticsTracker.getAllDiagnostics()
+    }
   }
 }

@@ -1,3 +1,16 @@
+export type InterfaceRoutingDetailedStatus =
+  | 'detected'
+  | 'enabled'
+  | 'selected'
+  | 'socket-bound'
+  | 'connected'
+  | 'transferring'
+  | 'confirmed physical traffic'
+  | 'fallback'
+  | 'unsupported'
+  | 'offline'
+  | 'idle'
+
 export type NetworkInterfaceKind = 'wifi' | 'ethernet' | 'usb' | 'bridge' | 'other'
 
 export interface NetworkInterfaceInfo {
@@ -17,6 +30,12 @@ export interface NetworkInterfaceInfo {
   bytesUploaded: number
   activePeers: number
   isOnline: boolean
+  physicalBytesReceived?: number
+  physicalBytesSent?: number
+  physicalDownloadSpeed?: number
+  physicalUploadSpeed?: number
+  isPhysicallyConfirmed?: boolean
+  routingState?: InterfaceRoutingDetailedStatus
 }
 
 export type InterfacePolicyMode = 'automatic' | 'preferred' | 'single' | 'custom'
@@ -152,9 +171,14 @@ export interface TorrentInterfaceTelemetry {
   downloadContributionPercent: number
   uploadContributionPercent: number
   lastActivityTime: number | null
-  routingStatus: 'bound' | 'fallback' | 'offline' | 'idle'
+  routingStatus: InterfaceRoutingDetailedStatus
   bindingCapability: 'fully_supported' | 'partial' | 'best_effort' | 'unsupported'
   bindingCapabilityReason?: string
+  physicalBytesReceived?: number
+  physicalBytesSent?: number
+  physicalDownloadSpeed?: number
+  physicalUploadSpeed?: number
+  isPhysicallyConfirmed?: boolean
 }
 
 export interface TorrentState {
@@ -250,4 +274,33 @@ export interface SystemTelemetry {
   totalBytesUploaded: number
   activeTorrentsCount: number
   interfaces: NetworkInterfaceInfo[]
+}
+
+export interface PeerDiagnosticRecord {
+  id: string
+  infoHash: string
+  ip: string
+  port: number
+  protocol: 'tcp' | 'utp' | 'webrtc'
+  selectedInterfaceId?: string
+  selectedInterfaceName?: string
+  selectedLocalAddress?: string
+  actualLocalAddress?: string
+  actualWindowsAdapter?: string
+  connectionResult: 'pending' | 'connected' | 'failed' | 'closed'
+  handshakeResult: 'pending' | 'success' | 'failed'
+  receivedBytes: number
+  uploadedBytes: number
+  fallbackReason?: string
+  timestamp: number
+}
+
+export interface RoutingDiagnosticsReport {
+  timestamp: number
+  platform: string
+  bindingCapability: string
+  interfaces: NetworkInterfaceInfo[]
+  physicalAdapterStats: { name: string; receivedBytes: number; sentBytes: number }[]
+  routesSummary: { destinationPrefix: string; nextHop: string; interfaceAlias: string; metric: number }[]
+  activePeersDiagnostics: PeerDiagnosticRecord[]
 }
