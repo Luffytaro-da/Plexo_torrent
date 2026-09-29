@@ -1,4 +1,4 @@
-import { connect, Socket, type SocketConstructorOpts } from 'node:net'
+import net, { connect, isIP, Socket, type SocketConstructorOpts } from 'node:net'
 import { networkInterfaces } from 'node:os'
 
 const AF_INET = 2
@@ -139,108 +139,200 @@ export interface SocketRelayMetadata {
   protocol: 'tcp' | 'utp' | 'webrtc'
   connectionStatus: 'connecting' | 'connected' | 'failed' | 'closed'
   fallbackReason?: string
-  routingStatus: 'bound' | 'fallback'
+  routingStatus: 'bound' | 'source-address' | 'fallback'
+  bindMethod: BindMethod
   bytesReceived: number
   bytesUploaded: number
 }
 
-const originalConnect = Socket.prototype.connect
-let socketInterceptorInstalled = false
+export type BindMethod = 'device' | 'source-address'
 
-export function installMultiInterfaceSocketInterceptor(
-  getRouting: (host: string, port: number) => OutgoingConnectionRoutingDecision | null,
-  onDiagnosticsEvent?: (
-    event: 'attempt' | 'connect' | 'error' | 'close',
-    meta: SocketRelayMetadata,
-    errorMsg?: string
-  ) => void
+export interface RouteRecord {
+  selectedInterface: OutgoingInterfaceSelection
+  bindMethod: BindMethod
+  actualLocalAddress?: string
+  fallbackReason?: string
+}
+
+type ConnectCb = (...args: unknown[]) => void
+export interface ParsedConnectArgs {
+  options: Record<string, unknown>
+  cb?: ConnectCb
+}
+
+/** Parses both Socket#connect forms, including net.connect's normalized [options, callback] array. */
+export function parseConnectArgs(args: unknown[]): ParsedConnectArgs | null {
+  const first = args[0]
+  if (Array.isArray(first)) {
+    const [options, cb] = first as [unknown, unknown]
+    if (!options || typeof options !== 'object') return null
+    return {
+      options: { ...(options as object) },
+      cb: typeof cb === 'function' ? (cb as ConnectCb) : undefined
+    }
+  }
+  if (first && typeof first === 'object') {
+    return {
+      options: { ...(first as object) },
+      cb: typeof args[1] === 'function' ? (args[1] as ConnectCb) : undefined
+    }
+  }
+  if (typeof first === 'number' || (typeof first === 'string' && /^\d+$/.test(first))) {
+    const cb = [args[1], args[2]].find((arg) => typeof arg === 'function') as ConnectCb | undefined
+    return {
+      options: { port: Number(first), host: typeof args[1] === 'string' ? args[1] : 'localhost' },
+      cb
+    }
+  }
+  return null
+}
+
+function routableIPv4(options: Record<string, unknown>): string | null {
+  const host = options.host
+  if (typeof host !== 'string' || typeof options.port !== 'number') return null
+  if (options.localAddress || options.path) return null
+  if (isIP(host) !== 4 || host.startsWith('127.') || host.startsWith('0.')) return null
+  return host
+}
+
+type Router = (host: string, port: number) => OutgoingConnectionRoutingDecision | null
+type DiagnosticsCb = (
+  event: 'attempt' | 'connect' | 'error' | 'close',
+  meta: SocketRelayMetadata,
+  errorMsg?: string
+) => void
+
+const routeRecords = new Map<string, RouteRecord>()
+const MAX_RECORDS = 4096
+
+export function getRouteRecord(host: string | undefined, port: number | undefined): RouteRecord | undefined {
+  return host && port ? routeRecords.get(`${host}:${port}`) : undefined
+}
+
+function remember(host: string, port: number, record: RouteRecord): void {
+  routeRecords.delete(`${host}:${port}`)
+  routeRecords.set(`${host}:${port}`, record)
+  if (routeRecords.size > MAX_RECORDS) routeRecords.delete(routeRecords.keys().next().value as string)
+}
+
+function track(
+  socket: Socket,
+  host: string,
+  port: number,
+  decision: OutgoingConnectionRoutingDecision,
+  selected: OutgoingInterfaceSelection,
+  method: BindMethod,
+  onEvent?: DiagnosticsCb
 ): void {
-  if (socketInterceptorInstalled) return
-  socketInterceptorInstalled = true
+  const record: RouteRecord = { selectedInterface: selected, bindMethod: method }
+  remember(host, port, record)
+  const meta: SocketRelayMetadata = {
+    infoHash: decision.infoHash,
+    peerId: `${host}:${port}`,
+    selectedInterface: selected,
+    selectedLocalAddress: selected.address,
+    protocol: 'tcp',
+    connectionStatus: 'connecting',
+    routingStatus: method === 'device' ? 'bound' : 'source-address',
+    bindMethod: method,
+    bytesReceived: 0,
+    bytesUploaded: 0
+  }
+  const tagged = socket as Socket & Record<string, unknown>
+  tagged._relayMeta = meta
+  tagged._relayInterface = selected
+  onEvent?.('attempt', meta)
 
-  Socket.prototype.connect = function (this: Socket, ...args: any[]): any {
+  socket.once('connect', () => {
+    meta.actualLocalAddress = record.actualLocalAddress = socket.localAddress ?? undefined
+    meta.connectionStatus = 'connected'
+    if (socket.localAddress && socket.localAddress !== selected.address) {
+      meta.routingStatus = 'fallback'
+      meta.fallbackReason = record.fallbackReason =
+        `Connected from ${socket.localAddress}, not the selected ${selected.address}`
+    }
+    onEvent?.('connect', meta)
+  })
+  socket.once('error', (error: NodeJS.ErrnoException) => {
+    meta.connectionStatus = 'failed'
+    meta.fallbackReason = record.fallbackReason =
+      error.code === 'ENETUNREACH' || error.code === 'EHOSTUNREACH' || error.code === 'EADDRNOTAVAIL'
+        ? `Selected adapter unreachable for destination (${error.code})`
+        : `Connection error: ${error.message}`
+    onEvent?.('error', meta, meta.fallbackReason)
+  })
+  socket.once('close', () => {
+    meta.connectionStatus = 'closed'
+    onEvent?.('close', meta)
+  })
+}
+
+const originalSocketConnect = Socket.prototype.connect
+const originalNetConnect = net.connect
+const originalCreateConnection = net.createConnection
+let installed = false
+
+export function installMultiInterfaceSocketInterceptor(getRouting: Router, onDiagnosticsEvent?: DiagnosticsCb): void {
+  if (installed) return
+  installed = true
+
+  Socket.prototype.connect = function (this: Socket, ...args: unknown[]): Socket {
     try {
-      let options: any = null
-      let cb: any = null
-
-      if (typeof args[0] === 'object' && args[0] !== null) {
-        options = { ...args[0] }
-        cb = args[1]
-      } else if (typeof args[0] === 'number' || typeof args[0] === 'string') {
-        const port = Number(args[0])
-        const host = typeof args[1] === 'string' ? args[1] : 'localhost'
-        cb = typeof args[1] === 'function' ? args[1] : typeof args[2] === 'function' ? args[2] : undefined
-        options = { port, host }
+      const tagged = this as Socket & { _relayRouted?: boolean }
+      const parsed = tagged._relayRouted ? null : parseConnectArgs(args)
+      const host = parsed && routableIPv4(parsed.options)
+      if (parsed && host) {
+        const port = parsed.options.port as number
+        const decision = getRouting(host, port)
+        const selected = decision?.targetInterface
+        if (decision && selected?.address && !decision.fallbackToDefault) {
+          tagged._relayRouted = true
+          parsed.options.localAddress = selected.address
+          parsed.options.family = 4
+          track(this, host, port, decision, selected, 'source-address', onDiagnosticsEvent)
+          return originalSocketConnect.call(this, parsed.options as never, parsed.cb as never)
+        }
       }
+    } catch (error) {
+      console.warn('[Router] connect interception failed, using default route:', error)
+    }
+    return originalSocketConnect.apply(this, args as never)
+  } as typeof Socket.prototype.connect
 
-      if (options && options.host && typeof options.host === 'string') {
-        const host = options.host
-        const isLocal = host === 'localhost' || host.startsWith('127.') || host === '::1'
-        if (!isLocal && !options.localAddress) {
-          const decision = getRouting(host, options.port)
+  const wrapped = function (...args: unknown[]): Socket {
+    try {
+      if (libc) {
+        const parsed = parseConnectArgs(args)
+        const host = parsed && routableIPv4(parsed.options)
+        if (parsed && host) {
+          const port = parsed.options.port as number
+          const decision = getRouting(host, port)
           const selected = decision?.targetInterface
-
-          if (selected && selected.address && !decision?.fallbackToDefault) {
-            options.localAddress = selected.address
-            const meta: SocketRelayMetadata = {
-              infoHash: decision?.infoHash,
-              peerId: decision?.peerId,
-              selectedInterface: selected,
-              selectedLocalAddress: selected.address,
-              actualLocalAddress: undefined,
-              protocol: 'tcp',
-              connectionStatus: 'connecting',
-              routingStatus: 'bound',
-              bytesReceived: 0,
-              bytesUploaded: 0
-            }
-            ;(this as any)._relayMeta = meta
-            ;(this as any)._relayInterface = selected
-            ;(this as any)._selectedLocalAddress = selected.address
-
-            onDiagnosticsEvent?.('attempt', meta)
-
-            this.once('connect', () => {
-              const actual = this.localAddress
-              meta.actualLocalAddress = actual
-              meta.connectionStatus = 'connected'
-              if (actual && actual !== selected.address) {
-                meta.routingStatus = 'fallback'
-                meta.fallbackReason = 'Windows routed connection through default gateway instead of selected adapter'
-                ;(this as any)._fallbackReason = meta.fallbackReason
-              } else {
-                meta.routingStatus = 'bound'
-              }
-              onDiagnosticsEvent?.('connect', meta)
-            })
-
-            this.once('error', (err: any) => {
-              meta.connectionStatus = 'failed'
-              const errMsg = err?.message || String(err)
-              if (err && (err.code === 'ENETUNREACH' || err.code === 'EHOSTUNREACH' || err.code === 'EADDRNOTAVAIL')) {
-                meta.fallbackReason = `Selected adapter unreachable for destination (${err.code})`
-              } else {
-                meta.fallbackReason = `Connection error: ${errMsg}`
-              }
-              ;(this as any)._fallbackReason = meta.fallbackReason
-              onDiagnosticsEvent?.('error', meta, meta.fallbackReason)
-            })
-
-            this.once('close', () => {
-              meta.connectionStatus = 'closed'
-              onDiagnosticsEvent?.('close', meta)
-            })
+          const device = selected && deviceFor(selected.address, host)
+          if (decision && selected?.address && device && !decision.fallbackToDefault) {
+            const fd = openOnDevice(libc, device)
+            const socket = new Socket({ fd, manualStart: true } as SocketConstructorOpts)
+            ;(socket as Socket & { _relayRouted?: boolean })._relayRouted = true
+            track(socket, host, port, decision, selected, 'device', onDiagnosticsEvent)
+            if (parsed.cb) socket.once('connect', parsed.cb)
+            return originalSocketConnect.call(socket, { host, port, family: 4, localAddress: selected.address } as never)
           }
         }
       }
-
-      if (options) {
-        return originalConnect.call(this, options, cb)
-      }
-    } catch {
-      // fallback to original connect
+    } catch (error) {
+      console.warn('[Router] device binding failed, falling back to source address:', error)
     }
-
-    return originalConnect.apply(this, args as any)
+    return (originalNetConnect as (...args: unknown[]) => Socket)(...args)
   }
+  net.connect = wrapped as typeof net.connect
+  net.createConnection = wrapped as typeof net.createConnection
+}
+
+export function uninstallMultiInterfaceSocketInterceptor(): void {
+  if (!installed) return
+  Socket.prototype.connect = originalSocketConnect
+  net.connect = originalNetConnect
+  net.createConnection = originalCreateConnection
+  routeRecords.clear()
+  installed = false
 }

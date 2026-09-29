@@ -31,6 +31,7 @@ import { InterfacePolicyEngine } from '../network/interfacePolicy'
 import { NetworkTelemetryTracker } from '../network/telemetry'
 import {
   installMultiInterfaceSocketInterceptor,
+  getRouteRecord,
   getPlatformBindingCapability,
   type OutgoingConnectionRoutingDecision
 } from '../network/deviceBinding'
@@ -926,8 +927,10 @@ export class TorrentEngine implements ITorrentEngineAdapter {
       }
 
       session.connectionCounter++
+      // WebTorrent does not expose the peer socket on the wire; recover routing metadata by peer address.
       const socket = (wire as any)._socket || (wire as any).conn || (wire as any)._conn
-      const relayMeta = (wire as any)._relayMeta || socket?._relayMeta
+      const routed = getRouteRecord(wire.remoteAddress, wire.remotePort)
+      const relayMeta = (wire as any)._relayMeta || socket?._relayMeta || routed
       const boundIface = relayMeta?.selectedInterface || (wire as any)._relayInterface || socket?._relayInterface
       const selectedInterface = boundIface || InterfacePolicyEngine.selectInterfaceForConnection(
         session.interfacePolicy,
@@ -935,7 +938,7 @@ export class TorrentEngine implements ITorrentEngineAdapter {
         session.connectionCounter
       )
 
-      const actualLocal = socket?.localAddress || relayMeta?.actualLocalAddress
+      const actualLocal = socket?.localAddress || relayMeta?.actualLocalAddress || routed?.actualLocalAddress
       const matchedIface = actualLocal ? this.interfaces.find((i) => i.address === actualLocal && i.isOnline && i.enabled) : null
       const effectiveIface = matchedIface || null
 
