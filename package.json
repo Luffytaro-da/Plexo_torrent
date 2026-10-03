@@ -5,6 +5,7 @@
   "type": "module",
   "main": "./out/main/index.js",
   "author": "RelayTorrent Team",
+  "license": "MIT",
   "scripts": {
     "format": "prettier --write .",
     "format:check": "prettier --check .",
